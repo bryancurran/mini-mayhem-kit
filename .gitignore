@@ -2,3 +2,6 @@ node_modules/
 dist/
 shots/
 .scratch/
+# Your games are yours: they're submitted with npm run upload, never committed here.
+games/*
+!games/.gitkeep

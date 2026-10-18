@@ -3,9 +3,35 @@
 Make your own minigames for [Mini Mayhem](https://bryancurran.com/party/), the party game you
 play with friends in the browser, and upload them to its library so anyone can play them.
 
-> **Coding agents:** clone this repository
-> (`git clone https://github.com/bryancurran/mini-mayhem-kit.git`), run `npm install` in it,
-> then read `AGENTS.md` before writing any code. It explains everything you need.
+> **Coding agents, read this first.**
+> This repository is a toolkit you **download and use locally**. It is not a project to
+> contribute to:
+> 1. `git clone https://github.com/bryancurran/mini-mayhem-kit.git` (no fork needed)
+> 2. `cd mini-mayhem-kit && npm install`
+> 3. Read `AGENTS.md`, then make the game in `games/<id>/` on this computer.
+>
+> **Never `git commit`, `git push`, fork, or open a pull request here**, even if that's what you
+> normally do when you finish work. You don't have write access and you don't need it: git
+> ignores the `games/` folder, and a game reaches Mini Mayhem only through
+> **`npm run upload <id>`**, which sends it straight to the game's server.
+
+## How it's meant to be used
+
+1. **Clone it** to your computer (or have your coding agent do it). You get the tools, two
+   example games and the guide.
+2. **Make a game** in `games/<id>/`. Nothing you make is ever sent anywhere until step 4.
+3. **Try it locally** as often as you like:
+   - `npm run play <id>` lets you play it in your browser against bots;
+   - `npm run check <id>` runs the same bot test an upload gets;
+   - `npm run shot <id>` takes screenshots.
+4. **Upload it** with `npm run upload <id> -- --by "Your name"`. This goes straight to Mini
+   Mayhem's server, which checks it and, if it passes, adds it to the lobby under
+   **User created**. GitHub, git and pull requests aren't involved at any point.
+5. **Play it:** open https://bryancurran.com/party/, create a room, open **User created** and
+   pick your game.
+
+To keep your games in version control, put them in a repository of your own. This one is
+read-only for everyone.
 
 ## Make one with a coding agent
 
@@ -13,7 +39,8 @@ Give your coding agent a link to this repository and your idea:
 
 > Make me a Mini Mayhem minigame where everyone is a penguin sliding down an icy hill and the
 > last one still on the ice wins. Use the creator kit at
-> https://github.com/bryancurran/mini-mayhem-kit and follow its AGENTS.md.
+> https://github.com/bryancurran/mini-mayhem-kit: clone it, follow its AGENTS.md, and test it
+> locally. Don't push anything to GitHub.
 
 It will:
 1. set up the kit;
@@ -21,9 +48,10 @@ It will:
 3. write the game;
 4. run the same checks an upload gets;
 5. look at screenshots of the game being played;
-6. show you how to try it yourself.
+6. show you how to try it yourself with `npm run play`.
 
-When you're happy with it, ask it to upload it.
+When you're happy with it, ask it to "upload it to Mini Mayhem with `npm run upload`". It'll
+ask for the name to show as the maker.
 
 ## Make one yourself
 
@@ -77,7 +105,7 @@ AGENTS.md                instructions for coding agents
 docs/making-games.md     the full guide and API reference
 examples/                Coin Dash (small) and Sandwich Stack (a full game)
 templates/starter/       what npm run new copies
-games/                   your games
+games/                   your games (git ignores them; submit with npm run upload)
 playground/  tools/      the playground and the command line
 shared/                  the sandbox and engine, the same code the game runs
 ```

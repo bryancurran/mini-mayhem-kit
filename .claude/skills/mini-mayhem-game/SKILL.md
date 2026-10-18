@@ -15,4 +15,9 @@ description: Make, change, test and upload Mini Mayhem party minigames (.mm pack
 5. Look at it: `npm run shot <id>` (and `npm run shot <id> -- --phone`), then open the PNGs it
    prints. Run `npm run setup-browser` once if it asks for a browser.
 6. Ask the user to play it with `npm run play <id>`.
-7. Only upload when the user asks: `npm run upload <id> -- --by "Their name"`.
+7. Only upload when the user asks: `npm run upload <id> -- --by "Their name"`. That sends the
+   game to Mini Mayhem's server.
+
+Never `git commit`, `git push`, fork or open pull requests in this repository. It's a local
+toolkit, games aren't part of it (git ignores `games/`), and `npm run upload` is the only way
+to submit a game.
