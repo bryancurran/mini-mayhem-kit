@@ -1,0 +1,20 @@
+{
+  "id": "coin-dash",
+  "name": "Coin Dash",
+  "color": "#ffb52e",
+  "tagline": "Grab more coins than anyone else!",
+  "rules": [
+    "Run around the arena and grab the coins.",
+    "Dash for a quick burst of speed (it needs a moment to recharge).",
+    "Most coins when time's up wins."
+  ],
+  "controls": {
+    "keyboard": "WASD / Arrows to run · Space to dash",
+    "touch": "Left stick to run · DASH button to dash",
+    "gamepad": "Left stick to run · A to dash"
+  },
+  "intro": "Grab the coins!",
+  "tickRate": 30,
+  "countdown": 3,
+  "input": { "buttons": ["a"], "move": true, "touch": "stick", "touchLabel": "DASH" }
+}

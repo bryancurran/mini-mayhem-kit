@@ -1,0 +1,21 @@
+{
+  "id": "stack-mm",
+  "name": "Sandwich Stack .mm",
+  "color": "#ff9f43",
+  "tagline": "Build the tallest sandwich. Timing is everything! (Packaged edition)",
+  "rules": [
+    "Each new layer slides back and forth over your sandwich. Drop it right on top.",
+    "Whatever hangs over the edge gets sliced off, so your sandwich gets narrower.",
+    "Spot-on drops are perfect, and a streak of them makes it wider again. Miss completely and the top two layers fall off.",
+    "Tallest sandwich when the time’s up wins."
+  ],
+  "controls": {
+    "keyboard": "Space (or click) to drop the layer",
+    "touch": "Tap anywhere to drop the layer",
+    "gamepad": "A to drop the layer"
+  },
+  "intro": "Drop each layer right on top of the last one!",
+  "tickRate": 30,
+  "countdown": 3,
+  "input": { "buttons": ["a"], "touch": "tap" }
+}

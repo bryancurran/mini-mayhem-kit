@@ -1,0 +1,28 @@
+{
+  "name": "mini-mayhem-kit",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Make minigames for Mini Mayhem, the browser party game: templates, examples, a local playground, checks and uploads",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "new": "node tools/mm.mjs new",
+    "check": "node tools/mm.mjs check",
+    "play": "node tools/mm.mjs play",
+    "shot": "node tools/mm.mjs shot",
+    "pack": "node tools/mm.mjs pack",
+    "upload": "node tools/mm.mjs upload",
+    "list": "node tools/mm.mjs list",
+    "setup-browser": "playwright-core install --only-shell chromium"
+  },
+  "dependencies": {
+    "@jitl/quickjs-wasmfile-release-sync": "0.31.0",
+    "playwright-core": "1.59.1",
+    "quickjs-emscripten-core": "0.31.0",
+    "three": "^0.186.1",
+    "vite": "^8.3.4"
+  }
+}

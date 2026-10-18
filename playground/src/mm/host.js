@@ -1,0 +1,296 @@
+import * as THREE from 'three';
+import ENGINE from '../../../shared/mm/prelude-rules.js?raw';
+import KIT from '../../../shared/mm/prelude-view.js?raw';
+import { MM } from '../../../shared/mm/format.js';
+import { Sandbox } from '../../../shared/mm/sandbox.js';
+import { MINIGAMES } from '../../../shared/minigames.js';
+import { disposeScene } from '../gfx.js';
+import { isTouchDevice } from '../input.js';
+import { sfx } from '../sfx.js';
+import { loadPackage } from './catalog.js';
+import { Controls } from './controls.js';
+import { Hud } from './hud.js';
+import { SceneHost } from './scene.js';
+
+// A packaged (.mm) minigame in the browser: a regular client view (see
+// client/src/minigames/index.js) wrapped around a QuickJS sandbox that runs the package's
+// rules.js and view.js. Once a frame it hands the sandbox the time, our inputs and whatever the
+// server sent; the sandbox predicts the game up to now and returns drawing commands, which
+// SceneHost checks and draws. The countdown, spectator banner, controls hint and whistle are
+// the same for every packaged game, so they live here.
+
+export function scriptedView(info) {
+  return class extends ScriptedView {
+    constructor(ctx) {
+      super(ctx, info.id);
+    }
+  };
+}
+
+class ScriptedView {
+  constructor(ctx, id) {
+    this.ctx = ctx;
+    this.id = id;
+    this.init = ctx.init ?? {};
+    this.rate = this.init.rate ?? 30;
+    this.meIndex = ctx.participants.indexOf(ctx.meId);
+    this.isPlaying = this.meIndex >= 0;
+    this.players = ctx.participants.map((pid, index) => {
+      const p = ctx.players.get(pid) ?? { name: '???', color: '#999999' };
+      return { index, id: pid, name: p.name, color: p.color, me: pid === ctx.meId };
+    });
+
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(40, 1, 0.3, 500);
+    this.camera.position.set(0, 6, 14);
+    this.camera.lookAt(0, 1, 0);
+
+    const meta = MINIGAMES[id];
+    const hint = this.isPlaying && meta ? (isTouchDevice ? meta.controls.touch : meta.controls.keyboard) : null;
+    this.hud = new Hud(ctx.hudRoot, { players: this.players, hint });
+    if (!this.isPlaying) this.hud.banner('Spectating · you’ll play next round', { style: 'info' });
+    this.host = new SceneHost(this.scene, this.camera, { hud: this.hud, onBadCommand: (msg) => console.warn(`[${id}] ${msg}`) });
+
+    this.inbox = { log: [], fin: this.init.fin ?? 0, hash: null, reset: null };
+    this.nextInput = 0;
+    this.box = null;
+    this.controls = null;
+    this.manifest = null;
+    this.ready = false;
+    this.failed = false;
+    this.over = false;
+    this.disposed = false;
+    this.lastCountdown = null;
+    this.introShown = false;
+    // For tests and tuning: time spent in the sandbox, prediction rebuilds, disagreements.
+    this.stats = { frames: 0, sandboxMs: 0, worstMs: 0, rebuilds: 0, desyncs: 0, checks: 0 };
+    this.load = { spent: 0, since: performance.now() };
+    this.boot();
+  }
+
+  // The game state as this browser currently predicts it, and the confirmed one (for debugging
+  // and tests).
+  debugState(confirmed = false) {
+    return this.box && !this.box.dead ? JSON.parse(this.box.call(confirmed ? 'state' : 'peek', '', MM.deadline.frame)) : null;
+  }
+
+  gameMs() {
+    return this.ctx.net.serverNow() - (this.init.goAt ?? 0);
+  }
+
+  // The screen, and the part of it the HUD doesn't cover (safe: px in from each edge, plus the
+  // size and shape of what's left). Banners come and go, so they don't count.
+  screen() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    return { width, height, aspect: width / height, portrait: width / height < 0.8, safe: this.safeArea(width, height) };
+  }
+
+  safeArea(width, height) {
+    const now = performance.now();
+    const c = this.safeCache;
+    if (c && now - c.at < 250 && c.width === width && c.height === height) return c.value;
+    const rects = (sel) => [...this.ctx.hudRoot.querySelectorAll(sel)].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+    let top = 0;
+    let bottom = 0;
+    let right = 0;
+    for (const r of rects('.hud-chips .chip, .hud-timer')) top = Math.max(top, r.bottom + 8);
+    for (const r of rects('.hud-bottom, .dash-btn, .tap-zone')) bottom = Math.max(bottom, height - r.top + 8);
+    for (const r of rects('.climb-tower')) right = Math.max(right, width - r.left + 8);
+    const w = Math.max(1, width - right);
+    const h = Math.max(1, height - top - bottom);
+    const value = { top: Math.round(top), bottom: Math.round(bottom), left: 0, right: Math.round(right), width: Math.round(w), height: Math.round(h), aspect: w / h };
+    this.safeCache = { at: now, width, height, value };
+    return value;
+  }
+
+  async boot() {
+    try {
+      const [{ loadQuickJS }, pkg] = await Promise.all([import('./quickjs.js'), loadPackage(this.id)]);
+      const QuickJS = await loadQuickJS();
+      if (this.disposed) return;
+      this.manifest = pkg.manifest;
+      this.box = new Sandbox(QuickJS, {
+        memory: MM.memory.client,
+        onLog: (level, msg) => console[level === 'log' ? 'log' : level](`[${this.id}] ${msg}`),
+      });
+      this.box.run(ENGINE, 'engine.js', MM.deadline.setup);
+      this.box.run(KIT, 'kit.js', MM.deadline.setup);
+      this.box.run(pkg.files['rules.js'], 'rules.js', MM.deadline.setup);
+      this.box.run(pkg.files['view.js'], 'view.js', MM.deadline.setup);
+      const init = this.init;
+      const commands = this.box.call(
+        'init',
+        JSON.stringify({
+          seed: init.seed ?? 1,
+          rate: this.rate,
+          me: this.meIndex,
+          players: this.players.map(({ index, id }) => ({ index, id })),
+          state: init.state ? JSON.parse(init.state) : null,
+          log: init.log ?? [],
+          view: { players: this.players.map(({ index, id, name, color }) => ({ index, id, name, color })), screen: this.screen() },
+        }),
+        MM.deadline.setup,
+      );
+      if (commands.length > MM.maxFrameBytes) throw new Error(`drew ${Math.round(commands.length / 1048576)} MB of commands while setting up`);
+      this.host.apply(JSON.parse(commands));
+      if (this.isPlaying && !this.over) {
+        this.controls = new Controls({ input: this.ctx.input, hudRoot: this.ctx.hudRoot, spec: pkg.manifest.input, clock: () => Math.round(this.gameMs()) });
+      }
+      this.ready = true;
+    } catch (e) {
+      this.fail(e);
+    }
+  }
+
+  fail(e) {
+    if (this.failed || this.disposed) return;
+    this.failed = true;
+    console.error(`[${this.id}] stopped: ${e.message}`);
+    this.hud.banner('This game hit a problem and stopped. Hang tight for the next round!', { style: 'warn' });
+    this.controls?.dispose();
+    this.controls = null;
+  }
+
+  // ---- networking -------------------------------------------------------------------------
+
+  onSnapshot(snap) {
+    const net = this.ctx.net;
+    net.seedClock(snap.t);
+    if (Math.abs(net.serverNow() - snap.t) > 1000) net.offset = snap.t - performance.now();
+    const inbox = this.inbox;
+    if (snap.S) {
+      inbox.reset = JSON.parse(snap.S);
+      inbox.log = inbox.log.filter((e) => e[1] >= inbox.reset.tick);
+    }
+    if (Array.isArray(snap.in)) for (const e of snap.in) inbox.log.push(e);
+    if (Number.isInteger(snap.f)) inbox.fin = Math.max(inbox.fin, snap.f);
+    if (snap.h) inbox.hash = snap.h;
+  }
+
+  onGameOver() {
+    this.over = true;
+    this.controls?.dispose();
+    this.controls = null;
+    sfx.whistle();
+  }
+
+  // ---- per frame --------------------------------------------------------------------------
+
+  resize(w, h) {
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  }
+
+  countdown(T) {
+    if (T < 0) {
+      const n = Math.ceil(-T);
+      if (n !== this.lastCountdown && n <= 5) {
+        this.lastCountdown = n;
+        this.hud.center(String(n), { style: 'count', ms: 850 });
+        sfx.countdown();
+      }
+      if (!this.introShown && this.manifest) {
+        this.introShown = true;
+        if (this.isPlaying && this.manifest.intro) this.hud.banner(this.manifest.intro, { style: 'info', ms: 3000 });
+      }
+    } else if (this.lastCountdown !== 0 && this.lastCountdown !== null) {
+      this.lastCountdown = 0;
+      this.hud.center('GO!', { style: 'go', ms: 900 });
+      sfx.go();
+    }
+  }
+
+  update(dt) {
+    this.countdown(this.gameMs() / 1000);
+    if (!this.ready || this.failed) {
+      this.host.tick(dt);
+      return;
+    }
+
+    // Our inputs go to the server straight away and into the prediction this frame.
+    const local = [];
+    if (this.controls && !this.over) {
+      for (const [t, a] of this.controls.poll()) {
+        if (t < 0) continue; // before GO
+        const c = ++this.nextInput;
+        this.ctx.net.send('input', { a, t, c });
+        local.push([c, t, a]);
+      }
+    }
+
+    const inbox = this.inbox;
+    const check = inbox.hash !== null && inbox.hash[0] === inbox.fin;
+    const screen = this.screen();
+    this.host.safe = screen.safe;
+    const args = {
+      now: this.gameMs(),
+      wall: performance.now(),
+      log: inbox.log,
+      fin: inbox.fin,
+      local,
+      reset: inbox.reset,
+      hash: check,
+      dt,
+      screen,
+    };
+    inbox.log = [];
+    inbox.reset = null;
+
+    const started = performance.now();
+    let out;
+    try {
+      const text = this.box.call('frame', JSON.stringify(args), MM.deadline.frame);
+      if (text.length > MM.maxFrameBytes) throw new Error(`drew ${Math.round(text.length / 1048576)} MB of commands in one frame`);
+      out = JSON.parse(text);
+    } catch (e) {
+      this.fail(e);
+      return;
+    }
+    const spent = performance.now() - started;
+    // A game that hogs the browser (without any single frame timing out) is stopped too.
+    const load = this.load;
+    load.spent += spent;
+    if (started - load.since > 3000) {
+      if (load.spent > (started - load.since) * MM.clientCpuShare) {
+        this.fail(new Error(`took ${Math.round((100 * load.spent) / (started - load.since))}% of the browser's time`));
+        return;
+      }
+      this.load = { spent: 0, since: started };
+    }
+    const s = this.stats;
+    s.frames++;
+    s.sandboxMs += spent;
+    s.worstMs = Math.max(s.worstMs, spent);
+    s.rebuilds = out.r;
+
+    // Every couple of seconds the server says what its state looks like; if ours differs,
+    // ask for a fresh copy.
+    if (check && out.h !== undefined) {
+      s.checks++;
+      if (out.h !== inbox.hash[1]) {
+        s.desyncs++;
+        console.warn(`[${this.id}] out of sync at tick ${inbox.fin}; fetching the server's state`);
+        this.ctx.net.send('input', { resync: true });
+      }
+      inbox.hash = null;
+    }
+
+    try {
+      this.host.apply(out.c);
+    } catch (e) {
+      this.fail(e);
+      return;
+    }
+    this.host.tick(dt);
+  }
+
+  dispose() {
+    this.disposed = true;
+    this.controls?.dispose();
+    this.box?.dispose();
+    this.host.dispose();
+    disposeScene(this.scene);
+    this.hud.dispose();
+  }
+}

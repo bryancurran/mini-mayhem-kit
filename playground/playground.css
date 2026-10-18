@@ -1,0 +1,101 @@
+/* The playground's own bits: the game list, errors and the panel in the corner. */
+
+#ui {
+  overflow: auto;
+}
+
+.pg-picker {
+  width: min(520px, calc(100% - 32px));
+  margin: 40px auto;
+  padding: 20px 22px;
+  pointer-events: auto;
+}
+
+.pg-picker h2 {
+  margin: 0 0 8px;
+}
+
+.pg-game {
+  display: flex;
+  flex-direction: column;
+  margin: 8px 0;
+  padding: 8px 12px;
+  border: 2.5px solid var(--line);
+  border-radius: 14px;
+  background: #f4effa;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.pg-game small {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.pg-error {
+  white-space: pre-wrap;
+  background: #ffe1e4;
+  border: 2.5px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  font-size: 13px;
+}
+
+#dev {
+  position: fixed;
+  left: 10px;
+  bottom: 10px;
+  z-index: 20;
+  max-width: min(420px, calc(100% - 20px));
+  font: 600 12px/1.4 ui-monospace, monospace;
+  color: #fff;
+  background: #2a1840d9;
+  border-radius: 10px;
+  padding: 6px 10px;
+  pointer-events: auto;
+}
+
+#dev summary {
+  cursor: pointer;
+  font-family: var(--font);
+  font-weight: 800;
+  font-size: 13px;
+}
+
+#dev label {
+  margin-right: 10px;
+}
+
+#dev select,
+#dev button {
+  font: inherit;
+  font-size: 12px;
+}
+
+.pg-buttons {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.pg-buttons a {
+  color: #fff;
+}
+
+.pg-errors div {
+  color: #ffb3bc;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+#dev:empty {
+  display: none;
+}
+
+/* On phones, keep it clear of the controls hint along the bottom. */
+@media (max-width: 699px) {
+  #dev {
+    bottom: 64px;
+  }
+}
