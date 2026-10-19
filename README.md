@@ -1,6 +1,6 @@
 # Mini Mayhem creator kit
 
-Make your own minigames for [Mini Mayhem](https://bryancurran.com/party/), the party game you
+Make your own minigames for [Mini Mayhem](https://minimosh.io/), the party game you
 play with friends in the browser, and upload them to its library so anyone can play them.
 
 > **Coding agents, read this first.**
@@ -27,7 +27,7 @@ play with friends in the browser, and upload them to its library so anyone can p
 4. **Upload it** with `npm run upload <id> -- --by "Your name"`. This goes straight to Mini
    Mayhem's server, which checks it and, if it passes, adds it to the lobby under
    **User created**. GitHub, git and pull requests aren't involved at any point.
-5. **Play it:** open https://bryancurran.com/party/, create a room, open **User created** and
+5. **Play it:** open https://minimosh.io/, create a room, open **User created** and
    pick your game.
 
 To keep your games in version control, put them in a repository of your own. This one is

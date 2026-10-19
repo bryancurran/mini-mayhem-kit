@@ -18,7 +18,7 @@ import path from 'node:path';
 import { MM } from '../shared/mm/format.js';
 import { ROOT, findGame, listGames, loadGame } from './games.mjs';
 
-const SERVER = process.env.MM_SERVER || 'https://bryancurran.com/party/';
+const SERVER = process.env.MM_SERVER || 'https://minimosh.io/';
 const COLORS = ['#ff5c8a', '#3d8bff', '#2fbf55', '#ff8f2e', '#a65bff', '#2ed9d9', '#ffb52e', '#e04cf0'];
 
 const [command, ...rest] = process.argv.slice(2);

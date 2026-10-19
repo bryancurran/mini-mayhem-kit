@@ -16,7 +16,7 @@ You use this repository locally. You never send anything back to it:
   even if your user says "upload it" or "publish it". You don't have write access and you
   don't need it. Git ignores `games/`, so there's nothing to commit anyway.
 - **The only way to submit a game is `npm run upload <id> -- --by "Name"`.** It sends the game
-  straight to Mini Mayhem's server (https://bryancurran.com/party/), which checks it and adds it
+  straight to Mini Mayhem's server (https://minimosh.io/), which checks it and adds it
   to the game's library. When your user says "upload", "publish", "submit" or "share" the game,
   this is what they mean. Run it only when they ask, and ask them which name to show as the
   maker.
