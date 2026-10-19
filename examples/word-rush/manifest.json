@@ -1,0 +1,19 @@
+{
+  "id": "word-rush",
+  "name": "Word Rush",
+  "color": "#2ed9d9",
+  "tagline": "Type the words to race your critter to the finish!",
+  "rules": [
+    "Everyone gets the same words, in the same order.",
+    "Type the word over your critter and press Enter to run ahead.",
+    "First to the finish wins. When time's up, whoever got furthest wins."
+  ],
+  "controls": {
+    "keyboard": "Type the word, then Enter",
+    "touch": "Type the word in the box, then Send"
+  },
+  "intro": "Type each word and press Enter!",
+  "tickRate": 20,
+  "countdown": 3,
+  "input": { "text": "live", "maxLength": 20 }
+}

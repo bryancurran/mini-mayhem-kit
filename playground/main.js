@@ -2,7 +2,7 @@ import './src/style.css';
 import './playground.css';
 import ENGINE from '../shared/mm/prelude-rules.js?raw';
 import { registerMinigame } from '../shared/minigames.js';
-import { lobbyInfo } from '../shared/mm/format.js';
+import { MM, botWord, cleanText, lobbyInfo } from '../shared/mm/format.js';
 import { localGame } from '../shared/mm/local-game.js';
 import { Engine } from './src/engine.js';
 import { Input } from './src/input.js';
@@ -15,7 +15,7 @@ import { loadQuickJS } from './src/mm/quickjs.js';
 // connection can be given a delay so you see how prediction feels online.
 //
 // URL: ?game=<id>&bots=3&lag=0 (ms each way)&seed=7 (the same game.random() every time).
-// &autoplay presses buttons for you (screenshots).
+// &autoplay presses buttons (or types) for you (screenshots).
 
 const COLORS = ['#ff4d5e', '#3d8bff', '#3ccf4e', '#ffc83d', '#a65bff', '#ff8f2e', '#ff6fcf', '#2ed9d9'];
 const BOT_NAMES = ['Ava', 'Kai', 'Mo', 'Lu', 'Zed', 'Pip', 'Rex'];
@@ -122,16 +122,52 @@ async function start() {
     }
   }, stepMs / 2);
 
-  startBots(game, ids.slice(1), m.input);
-  if (autoplay) startAutoplay(m.input);
+  startBots(game, ids.slice(1), m.input, view);
+  if (autoplay) startAutoplay(m.input, view);
   pg.ready = true;
   if (!autoplay) showDev(view, m); // screenshots show just the game
 }
 
-// Bots press random (but valid) inputs, a few times a second.
-function startBots(game, botIds, spec) {
-  for (const botId of botIds) {
+// What a bot playing player index `player` types next (see botWord in format.js).
+function botTarget(view, player, spec) {
+  let wanted = '';
+  try {
+    if (view.box && !view.box.dead) wanted = view.box.call('bot', JSON.stringify({ player }), MM.deadline.tick);
+  } catch {
+    // The game stopped: a random word then.
+  }
+  return cleanText(botWord(wanted, Math.random), spec.maxLength);
+}
+
+// Bots press random (but valid) inputs, a few times a second. In a typing game they type words
+// a letter at a time, mostly what the game's bot() says.
+function startBots(game, botIds, spec, view) {
+  botIds.forEach((botId, i) => {
     let c = 0;
+    if (spec.text) {
+      let word = null;
+      let typed = '';
+      const type = () => {
+        if (game.isFinished()) return;
+        const t = Math.round(performance.now() - game.goAt);
+        if (t < 0) return setTimeout(type, 100 - t);
+        if (word === null) {
+          word = botTarget(view, i + 1, spec);
+          typed = '';
+        }
+        if (typed.length < word.length) {
+          typed = word.slice(0, typed.length + 1);
+          if (spec.text === 'live') game.handleInput(botId, { a: ['t', typed, 0], t, c: ++c });
+          setTimeout(type, 110 + Math.random() * 260);
+        } else {
+          game.handleInput(botId, { a: ['t', typed, 1], t, c: ++c });
+          word = null;
+          setTimeout(type, 400 + Math.random() * 1200);
+        }
+      };
+      setTimeout(type, Math.random() * 1000);
+      return;
+    }
     const press = () => {
       if (game.isFinished()) return;
       const t = Math.round(performance.now() - game.goAt);
@@ -147,11 +183,30 @@ function startBots(game, botIds, spec) {
       setTimeout(press, 200 + Math.random() * 800);
     };
     setTimeout(press, Math.random() * 1000);
-  }
+  });
 }
 
-// For screenshots: plays for you through the real keyboard controls.
-function startAutoplay(spec) {
+// For screenshots: plays for you through the real keyboard controls, or types into the text box.
+function startAutoplay(spec, view) {
+  if (spec.text) {
+    let word = null;
+    const type = () => {
+      const box = document.querySelector('.hud-type-input');
+      if (box && !box.disabled && !box.form.hidden) {
+        word ??= botTarget(view, 0, spec);
+        if (box.value.length < word.length) {
+          box.value = word.slice(0, box.value.length + 1);
+          box.dispatchEvent(new Event('input'));
+        } else {
+          box.form.requestSubmit();
+          word = null;
+        }
+      }
+      setTimeout(type, 120 + Math.random() * 200);
+    };
+    setTimeout(type, 500);
+    return;
+  }
   const key = (code, ms) => {
     window.dispatchEvent(new KeyboardEvent('keydown', { code }));
     setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { code })), ms);

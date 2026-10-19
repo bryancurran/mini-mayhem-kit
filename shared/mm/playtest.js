@@ -1,4 +1,4 @@
-import { MM, tickOf } from './format.js';
+import { MM, botWord, cleanText, tickOf } from './format.js';
 import { Sandbox } from './sandbox.js';
 
 // Plays a packaged minigame headless, with a simulated clock and simulated network delays: a
@@ -116,6 +116,7 @@ export function playtest(pkg, { runtime, players = 4, games = 2, seed = 12345, m
       const spec = m.input;
       if (t < c.nextPress) return out;
       c.nextPress = t + 120 + rand() * 900;
+      if (spec.text) return botTyping(c, t, spec);
       const choices = [];
       if (spec.buttons.length) choices.push('button');
       if (spec.dirs) choices.push('dir');
@@ -126,6 +127,24 @@ export function playtest(pkg, { runtime, players = 4, games = 2, seed = 12345, m
         out.push(['p', b], ['r', b]);
       } else if (pick === 'dir') out.push(['d', 'udlr'[Math.floor(rand() * 4)]]);
       else if (pick === 'move') out.push(['m', Math.round((rand() * 2 - 1) * 10) * 10, Math.round((rand() * 2 - 1) * 10) * 10]);
+      return out;
+    }
+
+    // A word (see botWord) a letter at a time, then Enter.
+    function botTyping(c, t, spec) {
+      const out = [];
+      if (c.word === undefined || c.word === null) {
+        c.word = cleanText(botWord(c.box.call('bot', JSON.stringify({ player: c.me }), MM.deadline.tick), rand), spec.maxLength);
+        c.typed = '';
+      }
+      if (c.typed.length < c.word.length) {
+        c.typed = c.word.slice(0, c.typed.length + 1);
+        if (spec.text === 'live') out.push(['t', c.typed, 0]);
+        c.nextPress = t + 60 + rand() * 180;
+      } else {
+        out.push(['t', c.typed, 1]);
+        c.word = null;
+      }
       return out;
     }
 

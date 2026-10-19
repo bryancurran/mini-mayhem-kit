@@ -95,7 +95,7 @@ class ScriptedView {
     let bottom = 0;
     let right = 0;
     for (const r of rects('.hud-chips .chip, .hud-timer')) top = Math.max(top, r.bottom + 8);
-    for (const r of rects('.hud-bottom, .dash-btn, .tap-zone')) bottom = Math.max(bottom, height - r.top + 8);
+    for (const r of rects('.hud-bottom, .hud-type, .dash-btn, .tap-zone')) bottom = Math.max(bottom, height - r.top + 8);
     for (const r of rects('.climb-tower')) right = Math.max(right, width - r.left + 8);
     const w = Math.max(1, width - right);
     const h = Math.max(1, height - top - bottom);
@@ -135,7 +135,7 @@ class ScriptedView {
       if (commands.length > MM.maxFrameBytes) throw new Error(`drew ${Math.round(commands.length / 1048576)} MB of commands while setting up`);
       this.host.apply(JSON.parse(commands));
       if (this.isPlaying && !this.over) {
-        this.controls = new Controls({ input: this.ctx.input, hudRoot: this.ctx.hudRoot, spec: pkg.manifest.input, clock: () => Math.round(this.gameMs()) });
+        this.controls = new Controls({ input: this.ctx.input, hudRoot: this.ctx.hudRoot, hud: this.hud, spec: pkg.manifest.input, clock: () => Math.round(this.gameMs()) });
       }
       this.ready = true;
     } catch (e) {

@@ -90,6 +90,7 @@
     if (a[0] === 'p') ev = { type: 'press', button: a[1] };
     else if (a[0] === 'r') ev = { type: 'release', button: a[1] };
     else if (a[0] === 'd') ev = { type: 'dir', dir: DIRS[a[1]] };
+    else if (a[0] === 't') ev = { type: 'text', text: a[1], enter: a[2] === 1 };
     else ev = { type: 'move', x: a[1] / 100, y: a[2] / 100 };
     ev.player = e.p;
     ev.time = e.t / 1000;
@@ -338,6 +339,16 @@
 
     plain() {
       return isPlain(E.conf.s, 0) ? 'yes' : 'no';
+    },
+
+    // What a bot playing { player } would type now (rules.bot, for typing games), from the
+    // predicted state: for the bots in the play test and the kit's playground. '' if the game
+    // doesn't say. Nothing it does reaches the state.
+    bot(json) {
+      if (typeof rules.bot !== 'function' || !E.pred) return '';
+      const { player } = JSON.parse(json);
+      const text = inRules(() => rules.bot(JSON.parse(JSON.stringify(E.pred.s)), player, game));
+      return typeof text === 'string' ? text : '';
     },
 
     // The predicted state, for debugging tools and tests.

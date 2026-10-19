@@ -3,6 +3,18 @@
 `npm run update` gets the latest kit and prints what changed since yours. Uploads need the
 latest kit: Mini Mosh turns down games packed with an older one, and says how to update.
 
+## v3 (October 2026)
+
+- **Typing games.** A game can take typing instead of buttons: `"input": { "text": "enter" }`
+  (or `"live"` to get what's in the box as it's typed). Players type into a text box along the
+  bottom of the screen, and a phone's keyboard opens for it. A gamepad can't play a typing game,
+  so Mini Mosh shows it as one for computers and phones only. See "Typing games" in
+  `docs/making-games.md`, and the new example, `examples/word-rush`.
+- **`bot()` in rules.js** (optional, typing games): what a good player would type right now.
+  The check's bots and the playground's type it, so they play your game properly.
+- **`mm.hud.textbox({ show, placeholder })`** shows, hides or relabels the text box.
+- Packages say `"kit": 3`. Uploads need kit v3: run `npm run update`.
+
 ## v2 (October 2026)
 
 - **Update your games.** Uploading a game again (`npm run upload <id>`) replaces it in the

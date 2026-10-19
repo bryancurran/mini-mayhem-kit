@@ -118,7 +118,7 @@ under **Games → My games → your game → Update it from the creator kit**.
 ```
 AGENTS.md                instructions for coding agents
 docs/making-games.md     the full guide and API reference
-examples/                Coin Dash (small) and Sandwich Stack (a full game)
+examples/                Coin Dash (small), Sandwich Stack (a full game) and Word Rush (typing)
 templates/starter/       what npm run new copies
 games/                   your games (git ignores them; submit with npm run upload)
 CHANGELOG.md             what's new in each version of the kit

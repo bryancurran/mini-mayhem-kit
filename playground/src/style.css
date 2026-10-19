@@ -345,7 +345,19 @@ input:focus {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  gap: 10px;
   margin-bottom: 8px;
+}
+
+.head-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .count {
@@ -373,14 +385,34 @@ input:focus {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
   padding: 6px 10px;
+  border: none;
   border-radius: 12px;
   background: #f4effa;
   font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    box-shadow 0.12s;
 }
 
 .player.me {
   background: color-mix(in srgb, var(--c) 22%, white);
+}
+
+/* Each player opens their stats. */
+.player:hover,
+.player:focus-visible {
+  background: color-mix(in srgb, var(--c) 14%, #f4effa);
+  box-shadow: inset 0 0 0 2.5px var(--c);
+  outline: none;
+}
+
+.player.me:hover,
+.player.me:focus-visible {
+  background: color-mix(in srgb, var(--c) 30%, white);
 }
 
 .player.offline {
@@ -405,6 +437,28 @@ input:focus {
   font-size: 14px;
   color: var(--ink-soft);
   white-space: nowrap;
+}
+
+/* What each player is playing on (platform.js), and the warning under a game some of them can't
+   play. */
+.player .platform {
+  flex: none;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.platform-warn {
+  margin: 8px 0 0;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: #fff1b8;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.typing-tag {
+  flex: none;
+  font-size: 15px;
 }
 
 .state {
@@ -1124,6 +1178,65 @@ button.user-game {
   border-radius: 999px;
   padding: 3px 14px;
   white-space: nowrap;
+}
+
+/* A typing game's text box (mm/hud.js): above the controls hint, and above a phone's keyboard
+   while it's up (--kb, the keyboard's height). */
+.hud-type {
+  position: absolute;
+  left: 50%;
+  bottom: max(calc(var(--kb, 0px) + 10px), 54px);
+  transform: translateX(-50%);
+  width: min(440px, calc(100vw - 32px));
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.hud-type[hidden] {
+  display: none;
+}
+
+.hud-type-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 14px;
+  font-size: 20px; /* 16px or more, or iPhones zoom in on it */
+  box-shadow: 0 4px 0 var(--line);
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.hud-type-input:focus {
+  box-shadow:
+    0 4px 0 var(--line),
+    0 0 0 4px #ffcc3388;
+}
+
+.hud-type-input:disabled {
+  background: #eee8f4;
+}
+
+.hud-type-send {
+  flex: none;
+  width: 54px;
+  border: 3px solid var(--line);
+  border-radius: 12px;
+  background: var(--yellow);
+  box-shadow: 0 4px 0 var(--line);
+  font-size: 22px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.hud-type-send:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--line);
+}
+
+.hud-type-send:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .dash-meter {
@@ -1916,6 +2029,8 @@ button.user-game {
 
 .results-card {
   width: min(440px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
   text-align: center;
   padding: 20px 22px;
   animation: pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both;
@@ -1960,6 +2075,22 @@ button.user-game {
   box-shadow: 0 0 0 3px var(--c);
 }
 
+.result[data-stats] {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.result[data-stats]:hover,
+.result[data-stats]:focus-visible {
+  background: color-mix(in srgb, var(--c) 16%, #f4effa);
+  outline: none;
+}
+
+.result.place-1[data-stats]:hover,
+.result.place-1[data-stats]:focus-visible {
+  background: #ffe98a;
+}
+
 .medal {
   width: 38px;
   text-align: center;
@@ -1996,6 +2127,191 @@ button.user-game {
   }
 }
 
+/* How fun was it? Three stars under the placings (ratings.js), after the rows have slid in. */
+.results-poll {
+  margin: 0 0 12px;
+  padding: 8px 10px 6px;
+  border-radius: 16px;
+  background: #f4effa;
+  animation: pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  animation-delay: calc(0.45s + var(--i) * 0.12s);
+}
+
+.poll-q {
+  margin: 0 0 2px;
+  font-weight: 800;
+}
+
+.poll-stars {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+}
+
+.poll-star {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+
+.poll-star:hover:not(:disabled),
+.poll-star:focus-visible {
+  transform: scale(1.12);
+  outline: none;
+}
+
+.poll-star:disabled {
+  cursor: default;
+}
+
+.poll-star .star {
+  font-size: 34px;
+  line-height: 1.1;
+  filter: grayscale(1);
+  opacity: 0.4;
+  transition:
+    filter 0.15s,
+    opacity 0.15s;
+}
+
+.poll-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+/* Lit up to the star being hovered, then to the one chosen (with a pop each). */
+.poll-stars[data-hover='1'] .poll-star:nth-child(-n + 1) .star,
+.poll-stars[data-hover='2'] .poll-star:nth-child(-n + 2) .star,
+.poll-stars[data-hover='3'] .poll-star:nth-child(-n + 3) .star,
+.poll-stars[data-chosen='1'] .poll-star:nth-child(-n + 1) .star,
+.poll-stars[data-chosen='2'] .poll-star:nth-child(-n + 2) .star,
+.poll-stars[data-chosen='3'] .poll-star:nth-child(-n + 3) .star {
+  filter: none;
+  opacity: 1;
+}
+
+.poll-stars[data-chosen] .poll-star .star {
+  animation: star-pop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.poll-stars[data-chosen] .poll-star:nth-child(2) .star {
+  animation-delay: 0.07s;
+}
+
+.poll-stars[data-chosen] .poll-star:nth-child(3) .star {
+  animation-delay: 0.14s;
+}
+
+@keyframes star-pop {
+  50% {
+    transform: scale(1.35);
+  }
+}
+
+/* After a player-made game: the player's notes on it (notes.js), and Done (see ui.js showResults). */
+.results-card.with-notes {
+  width: min(480px, 100%);
+}
+
+.results-notes {
+  margin: 0 0 12px;
+  padding: 8px 10px 4px;
+  border-radius: 16px;
+  background: #f4effa;
+  text-align: left;
+  animation: pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  animation-delay: calc(0.45s + var(--i) * 0.12s);
+}
+
+.note-label {
+  display: block;
+  margin: 0 2px 4px;
+  font-weight: 800;
+}
+
+.note-text {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 76px;
+  max-height: 40vh;
+  resize: vertical;
+  border: 2.5px solid var(--line);
+  border-radius: 12px;
+  padding: 7px 10px;
+  background: #fff;
+  font: inherit;
+  font-size: 16px; /* any smaller and iPhones zoom in on it */
+  font-weight: 600;
+  line-height: 1.35;
+  color: inherit;
+  outline: none;
+}
+
+.note-text:focus {
+  box-shadow: 0 0 0 4px #ffcc3388;
+}
+
+.note-text::placeholder {
+  color: #9a8fae;
+}
+
+.note-status {
+  min-height: 1.4em;
+  margin: 1px 2px 0;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.note-status.error {
+  color: #d12a3a;
+}
+
+.results-done {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 12px;
+  margin: 0 0 8px;
+}
+
+.results-done-btn {
+  min-width: 120px;
+}
+
+.done-count {
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.done-tick {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  animation: star-pop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.done-tick[hidden] {
+  display: none;
+}
+
 .results-save {
   margin: -2px 0 12px;
   font-weight: 800;
@@ -2018,6 +2334,7 @@ button.user-game {
 }
 
 .games-chip,
+.stats-chip,
 .account-chip {
   display: inline-flex;
   align-items: center;
@@ -2040,12 +2357,14 @@ button.user-game {
 }
 
 .games-chip:hover,
+.stats-chip:hover,
 .account-chip:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 0 var(--line);
 }
 
 .games-chip:active,
+.stats-chip:active,
 .account-chip:active {
   transform: translateY(2px);
   box-shadow: 0 1px 0 var(--line);
@@ -2117,6 +2436,13 @@ button.user-game {
   font-size: 14px;
 }
 
+.account-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
 .google-button {
   min-height: 44px;
   display: grid;
@@ -2172,6 +2498,312 @@ button.user-game {
   color: #c0392b;
 }
 
+/* ---- stats -------------------------------------------------------------------------- */
+
+.stats-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: #2a184066;
+  animation: fade 0.25s both;
+}
+
+.stats-card {
+  position: relative;
+  width: min(460px, 100%);
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px 16px;
+  outline: none;
+  animation: pop 0.4s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.stats-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-right: 28px; /* the close button */
+  margin-bottom: 12px;
+}
+
+/* A big round badge in the player's color, with their initial. */
+.stats-badge {
+  flex: none;
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--c);
+  border: 3px solid var(--line);
+  box-shadow:
+    inset 0 -6px 0 #00000022,
+    0 3px 0 var(--line);
+  color: #fff;
+  font-size: 30px;
+  font-weight: 800;
+  -webkit-text-stroke: 5px var(--line);
+  paint-order: stroke fill;
+}
+
+.stats-who {
+  min-width: 0;
+}
+
+.stats-who h2 {
+  font-size: 28px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats-since {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.stats-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px;
+  scrollbar-width: thin;
+}
+
+.stat-streak {
+  align-self: center;
+  padding: 4px 14px;
+  border: 2.5px solid var(--line);
+  border-radius: 999px;
+  background: #ffe1c2;
+  font-weight: 800;
+  animation: pop 0.45s 0.25s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px 6px;
+  border-radius: 14px;
+  background: #f4effa;
+  min-width: 0;
+}
+
+.stat-tile b {
+  font-size: 28px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stat-tile > span {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.stat-tile.gold {
+  background: #fff1b8;
+  box-shadow: inset 0 0 0 2.5px var(--line);
+}
+
+.stat-tiles.loading .stat-tile {
+  background: linear-gradient(90deg, #f4effa 25%, #ebe3f5 50%, #f4effa 75%) 0 0 / 300% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -150% 0;
+  }
+}
+
+.stat-favs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.stat-fav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 12px;
+  border: 2.5px solid var(--line);
+  border-radius: 14px;
+  min-width: 0;
+}
+
+.stat-fav-game {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 18px;
+}
+
+.stat-fav-game b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stat-fav small {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.stats-sub {
+  margin: 4px 0 -4px;
+  font-size: 17px;
+}
+
+.stat-games {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-game {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  font-weight: 700;
+}
+
+.sg-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sg-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ug-dot.gone {
+  border-style: dashed;
+}
+
+.sg-numbers {
+  font-size: 13px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.sg-numbers b {
+  color: #a86b00;
+}
+
+/* How often they've played it (against their most played), and the share of it they've won. */
+.sg-bar {
+  grid-column: 1 / -1;
+  height: 10px;
+  border-radius: 999px;
+  background: #efe9f6;
+  overflow: hidden;
+}
+
+.sg-bar i {
+  display: block;
+  height: 100%;
+  width: calc(var(--p) * 100%);
+  min-width: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--yellow) calc(var(--w) * 100%), #c9b8e3 calc(var(--w) * 100%));
+  transform-origin: left;
+  animation: grow 0.7s cubic-bezier(0.2, 1, 0.4, 1) both;
+}
+
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.stats-more {
+  align-self: center;
+  font-size: 14px;
+}
+
+.stat-made {
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: #e3f6e8;
+  font-weight: 700;
+  text-align: center;
+}
+
+.stats-foot,
+.stats-note {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.stats-note .linkish {
+  font-size: inherit;
+}
+
+.stats-empty,
+.stats-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 8px 10px;
+  text-align: center;
+}
+
+.stats-empty p,
+.stats-error p {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.stats-empty p b {
+  font-size: 19px;
+  color: var(--ink);
+}
+
+.stats-empty-icon {
+  font-size: 40px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-bar i,
+  .stat-streak,
+  .stat-tiles.loading .stat-tile {
+    animation: none;
+  }
+}
+
 /* ---- games library ------------------------------------------------------------ */
 
 .library-overlay {
@@ -2210,11 +2842,75 @@ button.user-game {
   scrollbar-width: thin;
 }
 
-.lib-search {
-  width: 100%;
+.lib-tools {
   flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.lib-search {
+  flex: 1 1 220px;
+  min-width: 0;
   font-size: 17px;
   padding: 8px 14px;
+}
+
+.lib-sort {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: #f4effa;
+}
+
+.sort-btn {
+  padding: 3px 12px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: none;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sort-btn.selected {
+  border-color: var(--line);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.lib-platforms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.lib-platforms .no {
+  color: #9a8fae;
+  text-decoration: line-through;
+  opacity: 0.8;
+}
+
+.lib-rating {
+  margin: -4px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.lib-rating .rating-stars {
+  font-size: 18px;
+}
+
+.lib-rating .rating-num {
+  font-size: 15px;
 }
 
 .lib-list {
@@ -2244,6 +2940,40 @@ button.user-game {
 
 .lib-row .ug-text {
   flex: 1;
+}
+
+/* A game's average rating: three little stars filled to match (out of 3), and the number. */
+.rating {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.rating-stars {
+  font-size: 14px;
+  letter-spacing: 1px;
+  background: linear-gradient(90deg, #ffb400 calc(var(--r) * 100%), #d6cce3 0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.rating-num {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.rating-num small {
+  font-weight: 700;
+}
+
+.lib-noted {
+  flex: none;
+  font-size: 15px;
 }
 
 .yours {
@@ -2373,6 +3103,13 @@ button.user-game {
 .lib-play .btn {
   width: 100%;
   font-size: 19px;
+}
+
+.lib-notes {
+  margin-top: 14px;
+  padding: 8px 10px 4px;
+  border-radius: 16px;
+  background: #f4effa;
 }
 
 .lib-owner {
@@ -2551,10 +3288,25 @@ body:has(.tap-controls) .race-top {
     gap: 10px;
   }
 
-  /* The games library slides up from the bottom like the lobby panel. */
-  .library-overlay {
+  /* The games library and stats slide up from the bottom like the lobby panel. */
+  .library-overlay,
+  .stats-overlay {
     padding: 0;
     place-items: end stretch;
+    grid-template-columns: minmax(0, 1fr); /* never wider than the screen, whatever's inside */
+  }
+
+  .stats-card {
+    width: 100%;
+    max-height: 92dvh;
+    padding: 16px 14px max(14px, env(safe-area-inset-bottom));
+    border-bottom: none;
+    border-radius: 24px 24px 0 0;
+    animation: rise 0.3s cubic-bezier(0.2, 1, 0.4, 1) both;
+  }
+
+  .stat-tile b {
+    font-size: 24px;
   }
 
   .library-card {

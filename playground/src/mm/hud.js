@@ -2,8 +2,8 @@ import { sfx } from '../sfx.js';
 
 // The HUD parts a packaged minigame can use (mm.hud in the sandbox), built from the same
 // elements and styles as every other game: score chips, the timer, a race meter, the big
-// center pop and the banner. Everything the game passes in is checked and only ever used as
-// text, never as HTML.
+// center pop, the banner, and a typing game's text box. Everything the game passes in is
+// checked and only ever used as text, never as HTML.
 
 const COLOR = /^#[0-9a-f]{3,8}$/i;
 const POP_STYLES = new Set(['count', 'go', 'bad', 'big']);
@@ -40,6 +40,8 @@ export class Hud {
     this.outList = [];
     this.meterDots = null;
     this.lastSecond = null;
+    this.typeForm = null;
+    this.typeOptions = { show: true, placeholder: '' }; // as the game last set them
   }
 
   apply(part, a, b) {
@@ -49,6 +51,7 @@ export class Hud {
     else if (part === 'meter') this.meter(a);
     else if (part === 'center') this.center(a, b);
     else if (part === 'banner') this.banner(a, b);
+    else if (part === 'textbox') this.textOptions(a);
   }
 
   scores(values) {
@@ -146,7 +149,60 @@ export class Hud {
     if (keep > 0) this.bannerTimer = setTimeout(() => (b.hidden = true), keep);
   }
 
+  // A typing game's text box (made by controls.js for players, not spectators), along the bottom
+  // and above a phone's keyboard while it's up. It stays off until the game starts. Returns the
+  // <input>.
+  textbox(maxLength) {
+    const form = document.createElement('form');
+    form.className = 'hud-type';
+    form.innerHTML = `
+      <input class="hud-type-input" type="text" maxlength="${maxLength}" autocomplete="off" autocapitalize="off"
+        autocorrect="off" spellcheck="false" enterkeyhint="send" aria-label="Type here" disabled />
+      <button class="hud-type-send" type="submit" aria-label="Send" disabled>⏎</button>`;
+    this.el.appendChild(form);
+    this.typeForm = form;
+    const vv = window.visualViewport;
+    if (vv) {
+      const place = () => form.style.setProperty('--kb', `${Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))}px`);
+      vv.addEventListener('resize', place);
+      vv.addEventListener('scroll', place);
+      this.typeUnplace = () => {
+        vv.removeEventListener('resize', place);
+        vv.removeEventListener('scroll', place);
+      };
+    }
+    this.textOptions(this.typeOptions);
+    return form.querySelector('input');
+  }
+
+  // Lets the player type (once the game has started).
+  textReady() {
+    if (!this.typeForm) return;
+    for (const el of this.typeForm.elements) el.disabled = false;
+    this.textOptions(this.typeOptions);
+  }
+
+  // { show, placeholder } from the game.
+  textOptions(options) {
+    if (!options || typeof options !== 'object') return;
+    this.typeOptions = { show: options.show !== false, placeholder: str(options.placeholder, 60) };
+    const form = this.typeForm;
+    if (!form) return;
+    const input = form.querySelector('input');
+    form.hidden = !this.typeOptions.show;
+    input.placeholder = input.disabled ? 'Get ready…' : this.typeOptions.placeholder || 'Type here';
+    if (form.hidden && document.activeElement === input) input.blur();
+  }
+
+  removeTextbox() {
+    this.typeUnplace?.();
+    this.typeUnplace = null;
+    this.typeForm?.remove();
+    this.typeForm = null;
+  }
+
   dispose() {
+    this.removeTextbox();
     clearTimeout(this.centerTimer);
     clearTimeout(this.bannerTimer);
     this.el.remove();

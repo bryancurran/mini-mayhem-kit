@@ -1,9 +1,10 @@
+import { cleanText } from '../../../shared/mm/format.js';
 import { isTouchDevice } from '../input.js';
 
 // Turns keyboard, gamepad and touch into the inputs a packaged minigame asked for in its
-// manifest (input: { buttons, dirs, move, touch }): button presses and releases, direction taps
-// and the stick, each stamped with the game time it happened at. The game itself never sees a
-// key, a mouse or a touch.
+// manifest (input: { buttons, dirs, move, touch, text }): button presses and releases, direction
+// taps, the stick and typed text, each stamped with the game time it happened at. The game itself
+// never sees a key, a mouse or a touch.
 
 const KEY_A = new Set(['Space', 'Enter', 'NumpadEnter']);
 const KEY_B = new Set(['ShiftLeft', 'ShiftRight', 'KeyE']);
@@ -14,10 +15,11 @@ const ONE_BUTTON_KEYS = new Set(['ArrowDown', 'KeyS', 'ShiftLeft', 'ShiftRight']
 const DEADZONE = 0.2;
 const SWIPE_PX = 24;
 const MOVE_EVERY_MS = 33; // the stick is reported at most this often
+const LIVE_EVERY_MS = 50; // and the text box's contents (input.text "live")
 
 export class Controls {
-  // clock() -> the current game time in whole milliseconds
-  constructor({ input, hudRoot, spec, clock }) {
+  // clock() -> the current game time in whole milliseconds. hud: the game's Hud (for the text box).
+  constructor({ input, hudRoot, hud, spec, clock }) {
     this.input = input;
     this.spec = spec;
     this.clock = clock;
@@ -43,6 +45,54 @@ export class Controls {
       this.keys.clear();
     });
     this.buildTouch(hudRoot, on);
+    this.text = null;
+    if (spec.text) this.buildText(hud, on);
+  }
+
+  // A typing game: Enter sends what's in the text box and empties it. With "live", what's in it
+  // so far goes too, as it changes. On a computer, typing anywhere goes into the box.
+  buildText(hud, on) {
+    const box = hud.textbox(this.spec.maxLength);
+    const text = (this.text = { box, hud, ready: false, live: null, sent: '', at: -Infinity });
+    on(box, 'input', () => {
+      if (this.spec.text === 'live') text.live = cleanText(box.value, this.spec.maxLength);
+    });
+    on(box.form, 'submit', (e) => {
+      e.preventDefault();
+      if (!text.ready) return;
+      this.push(['t', cleanText(box.value, this.spec.maxLength), 1]);
+      box.value = '';
+      text.live = null;
+      text.sent = '';
+      box.focus({ preventScroll: true }); // after a tap on the send button, keep typing
+    });
+    on(
+      window,
+      'keydown',
+      (e) => {
+        if (!text.ready || box.form.hidden || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Enter') box.focus({ preventScroll: true });
+      },
+      { capture: true },
+    );
+    this.cleanup.push(() => hud.removeTextbox());
+  }
+
+  // Once the game starts, the text box opens; after that its contents go out as they change.
+  pollText() {
+    const text = this.text;
+    const t = this.clock();
+    if (!text.ready && t >= 0) {
+      text.ready = true;
+      text.hud.textReady();
+      if (!text.box.form.hidden) text.box.focus({ preventScroll: true });
+    }
+    if (text.live !== null && text.live !== text.sent && t - text.at >= LIVE_EVERY_MS) {
+      text.sent = text.live;
+      text.at = t;
+      this.push(['t', text.live, 0]);
+    }
   }
 
   push(action) {
@@ -64,7 +114,7 @@ export class Controls {
   }
 
   keyDown(e) {
-    if (e.target instanceof HTMLInputElement) return;
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     const code = e.code;
     let used = false;
     if (KEY_A.has(code) || (this.oneButton && ONE_BUTTON_KEYS.has(code))) {
@@ -208,6 +258,7 @@ export class Controls {
       this.touchButton = pressed;
     }
     if (this.sideHeld && spec.touch === 'hold') mx += (this.sideHeld.r.size ? 1 : 0) - (this.sideHeld.l.size ? 1 : 0);
+    if (this.text) this.pollText();
 
     if (spec.move) {
       const len = Math.hypot(mx, my);

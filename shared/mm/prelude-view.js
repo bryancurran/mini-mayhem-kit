@@ -218,6 +218,11 @@
       banner(text, options) {
         out.push(['hud', 'banner', text, options || {}]);
       },
+      // A typing game's text box (manifest input.text): { show, placeholder }, or false to hide
+      // it. It's shown from the start.
+      textbox(options) {
+        send('textbox', options === false ? { show: false } : options || {});
+      },
     },
   };
   function send(part, value) {

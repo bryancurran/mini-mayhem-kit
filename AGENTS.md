@@ -58,7 +58,8 @@ netcode, spectators, the results screen and coins. You write the rules and the l
    8 players, simple controls, a clear way to win.
 3. **Start from the template:** `npm run new <id> -- --name "Game Name"`. This copies Coin Dash
    (a small, complete game) to `games/<id>/`. Read `examples/coin-dash/` and
-   `examples/sandwich-stack/` (a full-size game) to see how things are done.
+   `examples/sandwich-stack/` (a full-size game) to see how things are done, and
+   `examples/word-rush/` for a typing game.
 4. **Edit** `games/<id>/manifest.json`, `rules.js` and `view.js`.
 5. **Check after every meaningful change:** `npm run check <id>`. This runs the same bot play
    test an upload gets, and checks the id and name aren't taken in the library. Fix everything
@@ -150,8 +151,13 @@ of the rest.
   - a stick (`move`);
   - a touch layout to match.
 
-  Every game must play equally well on a phone, a keyboard and a gamepad, so there's no mouse,
-  no aiming and no pointer input.
+  Every game must play equally well on a phone, a keyboard and a gamepad (typing games, below,
+  are the one exception), so there's no mouse, no aiming and no pointer input.
+- **Or typing (`"text": "enter"` or `"live"`), and nothing else.** Players type into a text box
+  (a phone's keyboard pops up for it). A gamepad can't play a typing game, so only make one when
+  typing is the idea (word races, guessing words, answering questions), and agree it with your
+  user first. Write a `bot()` in rules.js so the check's bots type real answers, and make sure the
+  game also ends on a timer. See "Typing games" in `docs/making-games.md`.
 - **It must end, for any number of players from 1 to 8.** Solo practice exists. Call
   `game.end()` and make `results()` place every player.
 - **Stay within the limits** in `docs/making-games.md`:
@@ -214,6 +220,7 @@ AGENTS.md                this file
 docs/making-games.md     the full API: manifest, rules, view, the mm kit, netcode, limits
 examples/coin-dash/      the starter game (small, avatars and a stick)
 examples/sandwich-stack/ a full game (custom geometry, textures, baking, events)
+examples/word-rush/      a typing game (the text box, live typing, bot())
 templates/starter/       what npm run new copies
 games/                   your games (git ignores them; submit with npm run upload)
 .mm-keys.json            keys for the games you've uploaded (git ignores it; never share it)

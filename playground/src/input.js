@@ -24,7 +24,7 @@ export class Input {
     this.padTaps = { L: false, R: false, U: false };
 
     window.addEventListener('keydown', (e) => {
-      if (e.target instanceof HTMLInputElement) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       this.keys.add(e.code);
       if (!e.repeat && TAP_KEYS[e.code]) this.pushTap(TAP_KEYS[e.code]);
       if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {

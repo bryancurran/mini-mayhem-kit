@@ -60,6 +60,7 @@ to the game's library (see Uploading).
 | `buttons: ["a", "b"]` | a: Space / Enter, b: Shift / E | A, B | |
 | `dirs: true` (taps) | arrows / WASD | d-pad, stick flicks | |
 | `move: true` (a stick) | arrows / WASD held | left stick, d-pad | |
+| `text: "enter"` or `"live"` (typing) | typing in a text box | can't play | the phone's keyboard |
 
 `touch` picks the phone layout:
 - `tap`: tap anywhere = a.
@@ -71,6 +72,31 @@ to the game's library (see Uploading).
 
 There's no mouse aiming or free-form pointer input on purpose: every game has to play the
 same on a phone, a keyboard and a gamepad.
+
+### Typing games
+
+A game can ask for typing instead: `"input": { "text": "enter" }`. Players get a text box along
+the bottom of the screen (on a phone, above the keyboard), and the game gets what they type.
+Typing is all a typing game takes: no buttons, `dirs` or `move` (the keyboard is busy typing),
+and `touch` is `"none"`. Leave out `controls.gamepad`: **a gamepad can't play a typing game**, and
+the game shows it as one for a computer or a phone only.
+
+- `text: "enter"`: the game gets what's in the box when the player presses Enter (or the send
+  button on a phone), and the box empties.
+- `text: "live"`: the same, plus what's in the box so far each time it changes (up to 20 times a
+  second), for games that show everyone's typing as it happens.
+- `maxLength`: the most characters the box takes, 1-100 (100 if you leave it out).
+
+The box opens at "GO!", and on a computer anything typed goes into it. Keep the words, answers or
+prompts in the state, drawn by view.js, and set the box's placeholder to what to type
+(`mm.hud.textbox`, see HUD). Compare text loosely (`text.trim().toLowerCase()`): phones
+add capitals and spaces of their own. Everything typed reaches every player's browser, the same as
+any input.
+
+Bots type too (in `npm run check` and the playground): a word at a time, a letter at a time.
+They type what your rules' `bot()` says a good player would type now, and now and then a random
+word, so wrong answers get tried as well. Without `bot()` they only type random words, so a game
+that needs the right words to end must also end on a timer. See `examples/word-rush`.
 
 ## rules.js
 
@@ -92,6 +118,10 @@ defineRules({
   results(state, game) {
     return game.players.map((p) => ({ player: p.index, place: 1 + state.scores.filter((s) => s > state.scores[p.index]).length }));
   },
+  // Typing games only, and optional: what a good player would type now (only bots use it).
+  bot(state, player, game) {
+    return state.words[state.at[player]];
+  },
 });
 ```
 
@@ -109,6 +139,8 @@ millisecond):
 - `{ type: 'press' | 'release', button: 'a' | 'b' }`
 - `{ type: 'dir', dir: 'up' | 'down' | 'left' | 'right' }`
 - `{ type: 'move', x, y }`, with x and y from -1 to 1 and y pointing up.
+- `{ type: 'text', text, enter }` in typing games: `enter` is `true` when they pressed Enter
+  (the box is empty after that), and `false` for what's in the box so far (`text: "live"` only).
 
 Inputs arrive in time order, and an input is applied before the step of the tick it falls
 in.
@@ -260,6 +292,7 @@ mm.hud.timer(secondsLeft)                                // or null to hide; tic
 mm.hud.meter({ icon: '🥪', values: [0..1 per player], stops: ['#hex', ['#hex', 40], ...] })
 mm.hud.center('YOU WIN!', { style: 'count' | 'go' | 'bad' | 'big', ms })   // ms: 0 keeps it up
 mm.hud.banner('Text', { style: 'info' | 'warn', ms })
+mm.hud.textbox({ show, placeholder })                    // typing games: the text box; false hides it
 ```
 
 The engine already shows the countdown and "GO!", the controls hint, "Spectating" for
@@ -271,6 +304,11 @@ Where things sit:
 - **Along the bottom:** the controls hint, plus the touch controls on phones (the DASH button or
   side buttons in the bottom corners). The meter runs down the right edge.
 - **Banners:** below the chips on wide screens, and above the bottom controls on phones.
+- **A typing game's text box:** along the bottom, just above the controls hint; on a phone, above
+  the keyboard while it's up. `view.screen.safe` leaves room for it (so with `safe: true`, the
+  camera keeps the picture above the keyboard). It's shown from the start: hide it with
+  `mm.hud.textbox(false)` while there's nothing to type (when the player has finished, say), and
+  show it again with `mm.hud.textbox({ placeholder: 'Type “apple”' })`.
 
 `view.screen.safe` covers everything except banners, which come and go.
 
@@ -305,6 +343,7 @@ People who join or refresh mid-game get the confirmed state and every input sinc
 | state | 256 KB as JSON |
 | drawing | 6000 nodes, 2000 materials, textures and geometries, 96 textures (up to 1024²), 1.5 M vertices, 200 labels, 4 MB of commands per frame, 8 sounds per frame |
 | inputs | 60 per second per player (a press and its release are two) |
+| typing | 100 characters at a time (`maxLength`) |
 
 A game that breaks a limit or throws an error is stopped. In a browser, the player sees
 "This game hit a problem and stopped". On the server, the round ends straight away with
