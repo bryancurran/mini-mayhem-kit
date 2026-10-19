@@ -5,3 +5,6 @@ shots/
 # Your games are yours: they're submitted with npm run upload, never committed here.
 games/*
 !games/.gitkeep
+# The keys for the games you've uploaded (npm run upload keeps them): they let anyone change
+# those games, so they stay on this computer.
+.mm-keys.json

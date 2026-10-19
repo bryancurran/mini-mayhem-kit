@@ -6,7 +6,8 @@ play with friends in the browser, and upload them to its library so anyone can p
 > **Coding agents, read this first.**
 > This repository is a toolkit you **download and use locally**. It is not a project to
 > contribute to:
-> 1. `git clone https://github.com/bryancurran/mini-mayhem-kit.git` (no fork needed)
+> 1. `git clone https://github.com/bryancurran/mini-mayhem-kit.git` (no fork needed), or if
+>    it's already here, `npm run update` to get the latest version (uploads need it)
 > 2. `cd mini-mayhem-kit && npm install`
 > 3. Read `AGENTS.md`, then make the game in `games/<id>/` on this computer.
 >
@@ -27,8 +28,14 @@ play with friends in the browser, and upload them to its library so anyone can p
 4. **Upload it** with `npm run upload <id> -- --by "Your name"`. This goes straight to Mini
    Mosh's server, which checks it and, if it passes, adds it to the lobby under
    **User created**. GitHub, git and pull requests aren't involved at any point.
-5. **Play it:** open https://minimosh.io/, create a room, open **User created** and
-   pick your game.
+5. **Play it:** open https://minimosh.io/, press **Games**, find your game and press
+   **Play it**.
+6. **Keep improving it:** change it, then `npm run upload <id>` again to replace the version in
+   the library. The first upload also prints a link: open it once and your game shows under
+   **Games → My games**, where you can update it, rename it or delete it from the browser.
+
+Before you start, and whenever the kit says it's out of date, run `npm run update`: it gets the
+latest kit from GitHub (your games are safe), and uploads need the latest version.
 
 To keep your games in version control, put them in a repository of your own. This one is
 read-only for everyone.
@@ -51,7 +58,8 @@ It will:
 6. show you how to try it yourself with `npm run play`.
 
 When you're happy with it, ask it to "upload it to Mini Mosh with `npm run upload`". It'll
-ask for the name to show as the maker.
+ask for the name to show as the maker. Later, ask it to change the game and "upload the new
+version": the same command updates it.
 
 ## Make one yourself
 
@@ -71,11 +79,14 @@ full guide.
 
 | Command | What it does |
 |---|---|
+| `npm run update` | Gets the latest kit (run it first; uploads need the latest version) |
 | `npm run new <id>` | Starts a game in `games/<id>/` from the starter template |
 | `npm run play [id]` | Opens the playground: play against bots, with an adjustable network delay (`-- --host` for phones on your wifi) |
 | `npm run check <id>` | Plays it headless with bots, the same check uploads get, and checks the id and name are free |
 | `npm run shot <id>` | Saves screenshots of it being played (`-- --phone`, `-- --at 3,20`). Run `npm run setup-browser` once first: it downloads a headless browser (about 110 MB) into `~/.cache/ms-playwright` |
-| `npm run upload <id>` | Sends it to Mini Mosh's library (`-- --by "Your name"`) |
+| `npm run upload <id>` | Sends it to Mini Mosh's library (`-- --by "Your name"`), or updates it there if you uploaded it before |
+| `npm run delete <id>` | Takes your game out of the library |
+| `npm run get <id>` | Downloads a game from the library into `games/<id>/` |
 | `npm run pack <id>` | Builds `dist/<id>.mm` (you can also upload that from the game's lobby) |
 | `npm run list` | Lists your games and the examples |
 
@@ -96,7 +107,11 @@ Uploads are checked in three steps:
 3. **Review:** an automated look for content that isn't fine for all ages, scams and other
    problems.
 
-If it passes, it goes straight into the lobby under **User created**.
+If it passes, it goes straight into the lobby under **User created**. Uploading it again later
+goes through the same checks and replaces it. The kit keeps a key for each game it uploads in
+`.mm-keys.json` (git ignores it): that key is what lets you update or delete it, so don't share
+it. If you uploaded a game from another computer or the browser, get its key on minimosh.io
+under **Games → My games → your game → Update it from the creator kit**.
 
 ## What's here
 
@@ -106,6 +121,7 @@ docs/making-games.md     the full guide and API reference
 examples/                Coin Dash (small) and Sandwich Stack (a full game)
 templates/starter/       what npm run new copies
 games/                   your games (git ignores them; submit with npm run upload)
+CHANGELOG.md             what's new in each version of the kit
 playground/  tools/      the playground and the command line
 shared/                  the sandbox and engine, the same code the game runs
 ```

@@ -6,7 +6,15 @@ export const MINIGAME_IDS = [];
 export const USER_MINIGAME_IDS = [];
 
 export function registerMinigame(info) {
-  if (MINIGAMES[info.id]) return;
+  const known = Boolean(MINIGAMES[info.id]);
   MINIGAMES[info.id] = info;
-  MINIGAME_IDS.push(info.id);
+  if (!known) MINIGAME_IDS.push(info.id);
+}
+
+export function unregisterMinigame(id) {
+  delete MINIGAMES[id];
+  for (const list of [MINIGAME_IDS, USER_MINIGAME_IDS]) {
+    const i = list.indexOf(id);
+    if (i >= 0) list.splice(i, 1);
+  }
 }

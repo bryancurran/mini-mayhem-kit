@@ -106,7 +106,7 @@ class ScriptedView {
 
   async boot() {
     try {
-      const [{ loadQuickJS }, pkg] = await Promise.all([import('./quickjs.js'), loadPackage(this.id)]);
+      const [{ loadQuickJS }, pkg] = await Promise.all([import('./quickjs.js'), loadPackage(this.id, this.ctx.version)]);
       const QuickJS = await loadQuickJS();
       if (this.disposed) return;
       this.manifest = pkg.manifest;

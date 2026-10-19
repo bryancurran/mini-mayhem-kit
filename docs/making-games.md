@@ -335,7 +335,42 @@ turned down:
    It doesn't judge how good the game is.
 
 Accepted games are playable right away. Everyone in a lobby sees them under User created, and
-the host can pick them like any other game. They don't appear on the spin wheel.
+the host can pick them like any other game. They don't appear on the spin wheel. Anyone can also
+find them from the home screen: **Games** lists every game with its rules, and **Play it** makes
+a room with that game up first.
+
+Uploads need the latest creator kit. Every package says which kit version packed it, and one
+from an older kit is turned down with a message saying to run `npm run update`. The kit's own
+commands say when it's behind, too.
+
+### Updating a game
+
+Upload it again: `npm run upload my-game`. A package whose `id` is one of your games replaces
+it, after the same three checks. Games already being played finish on the old version, and
+every game after uses the new one. Keep the same `id` (a different id is a different game). A
+new `name` or `tagline` in manifest.json goes with it.
+
+What makes it yours is a key. The server gives the kit one for each game it uploads, and the kit
+keeps it in `.mm-keys.json` (git ignores it). Don't share it: anyone with the key can update or
+delete the game. A game uploaded from a browser belongs to that browser's account instead (sign
+in to keep it on every device).
+
+### Looking after your games in the browser
+
+After a game's first upload, the kit prints a link. Open it once (signed in, ideally) and the
+game is under **Games → My games** on minimosh.io. From there you can:
+
+- **Update** it with a new `.mm` file (`npm run pack my-game` makes one);
+- **Edit details**: its name and tagline (checked by the review again) and the name shown as its
+  maker;
+- **Delete** it;
+- get a new key for the kit (**Update it from the creator kit**), to update it from a computer
+  that doesn't have the key: `npm run upload my-game -- --key <key>` once, and the kit keeps it.
+  The old key stops working.
+
+From the kit, `npm run delete my-game` takes it out of the library, and `npm run get my-game`
+downloads a game from the library into `games/my-game/` (to carry on with it on another
+computer).
 
 ## npm run check
 

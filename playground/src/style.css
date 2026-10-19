@@ -328,11 +328,17 @@ input:focus {
   font-size: 24px;
 }
 
+/* White with the logo's outline, so it reads over the bright stage. */
 .fineprint {
   margin: 0;
   text-align: center;
-  font-weight: 700;
-  color: var(--ink-soft);
+  font-weight: 800;
+  font-size: 17px;
+  letter-spacing: 0.01em;
+  color: #fff;
+  -webkit-text-stroke: 4px var(--line);
+  paint-order: stroke fill;
+  text-shadow: 0 2px 0 var(--line);
 }
 
 .card-head {
@@ -915,7 +921,16 @@ button.user-game {
   position: fixed;
   inset: 0;
   pointer-events: none !important;
+}
+
+/* Holding or mashing a control is a long press on a phone: don't let it select the label or
+   pop up the copy / look up menu. */
+.hud,
+.touch-controls,
+.swipe-zone {
+  -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .hud-top {
@@ -1981,6 +1996,456 @@ button.user-game {
   }
 }
 
+.results-save {
+  margin: -2px 0 12px;
+  font-weight: 800;
+  color: #a86b00;
+}
+
+.save-note {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* ---- account: coin button, panel ------------------------------------------- */
+
+/* The row of little buttons above the home card: the games library, and coins / sign-in. */
+.home-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.games-chip,
+.account-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 14px;
+  border: 3px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  box-shadow: 0 3px 0 var(--line);
+  font-weight: 800;
+  font-size: 16px;
+  cursor: pointer;
+  transition:
+    transform 0.06s,
+    box-shadow 0.06s;
+}
+
+.account-chip {
+  margin-left: auto;
+}
+
+.games-chip:hover,
+.account-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 0 var(--line);
+}
+
+.games-chip:active,
+.account-chip:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--line);
+}
+
+.chip-sign {
+  color: var(--blue);
+}
+
+.chip-sep {
+  color: var(--ink-soft);
+}
+
+.account-overlay,
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: #2a184066;
+  animation: fade 0.25s both;
+}
+
+.account-card,
+.modal-card {
+  position: relative;
+  width: min(400px, 100%);
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  animation: pop 0.4s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.account-card p,
+.modal-card p {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.modal-card h2 {
+  font-size: 24px;
+}
+
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.account-card p b {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.account-card .wallet-total {
+  font-size: 44px;
+  margin: -4px 0 0;
+}
+
+.account-card .spend {
+  font-size: 14px;
+}
+
+.google-button {
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+}
+
+.google-button .loading {
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.account-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 16px;
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.account-foot a {
+  color: var(--ink-soft);
+}
+
+.close-x {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  border: none;
+  background: none;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.linkish {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 800;
+  color: var(--blue);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.linkish.danger {
+  color: #c0392b;
+}
+
+/* ---- games library ------------------------------------------------------------ */
+
+.library-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45; /* under the upload and account dialogs it opens */
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: #2a184066;
+  animation: fade 0.25s both;
+}
+
+.library-card {
+  position: relative;
+  width: min(560px, 100%);
+  height: min(720px, calc(100dvh - 32px));
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px 14px;
+  animation: pop 0.4s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.lib-head .game-tabs {
+  margin: 8px 0 10px;
+}
+
+.lib-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 2px 4px;
+  scrollbar-width: thin;
+}
+
+.lib-search {
+  width: 100%;
+  flex: none;
+  font-size: 17px;
+  padding: 8px 14px;
+}
+
+.lib-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lib-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: 2.5px solid var(--line);
+  border-radius: 14px;
+  background: #f4effa;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.lib-row:hover,
+.lib-row:focus-visible {
+  background: #fff1b8;
+}
+
+.lib-row .ug-text {
+  flex: 1;
+}
+
+.yours {
+  flex: none;
+  margin-left: auto;
+  padding: 0 8px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: var(--green);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 18px;
+}
+
+.lib-empty {
+  margin: 18px 8px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.lib-empty p {
+  margin: 6px 0;
+}
+
+.lib-empty a {
+  color: var(--blue);
+  font-weight: 800;
+}
+
+.lib-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 3px solid #e6dfef;
+}
+
+.lib-note {
+  margin: 0;
+  width: 100%;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.lib-name {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lib-name label,
+.lib-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.lib-name input,
+.lib-edit input {
+  font-size: 17px;
+  padding: 7px 12px;
+}
+
+.lib-back {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  padding: 2px 0;
+  font: inherit;
+  font-weight: 800;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.lib-back:hover {
+  color: var(--ink);
+}
+
+.lib-game h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 30px;
+  overflow-wrap: anywhere;
+}
+
+.lib-game h2 .ug-dot {
+  width: 20px;
+  height: 20px;
+}
+
+.lib-meta {
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.lib-meta b {
+  color: var(--ink);
+}
+
+.lib-game .tagline {
+  margin: 12px 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.lib-game .controls {
+  line-height: 1.5;
+}
+
+.lib-play {
+  margin: 14px 0 4px;
+}
+
+.lib-play .btn {
+  width: 100%;
+  font-size: 19px;
+}
+
+.lib-owner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 3px solid #e6dfef;
+}
+
+.lib-owner-head {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+
+.lib-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn.danger {
+  background: #ffd6db;
+}
+
+.kit-key {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #f4effa;
+}
+
+.kit-key p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.kit-command {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--ink);
+  color: #fff;
+  font: 600 13px/1.4 ui-monospace, 'SF Mono', Menlo, monospace;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.lib-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 3px solid #e6dfef;
+}
+
+.user-foot .guide-links {
+  display: flex;
+  gap: 12px;
+}
+
 /* ---- misc chrome ---------------------------------------------------------- */
 
 #toasts {
@@ -2036,6 +2501,16 @@ button.user-game {
   padding: 0;
 }
 
+/* The lean / hop buttons sit in the bottom corners, so the sound button moves to the top. */
+body:has(.tap-controls) #mute {
+  bottom: auto;
+  top: 14px;
+}
+
+body:has(.tap-controls) .race-top {
+  left: 70px;
+}
+
 #netstatus {
   position: fixed;
   top: 16px;
@@ -2074,6 +2549,31 @@ button.user-game {
     border-top: 3px solid var(--line);
     border-radius: 24px 24px 0 0;
     gap: 10px;
+  }
+
+  /* The games library slides up from the bottom like the lobby panel. */
+  .library-overlay {
+    padding: 0;
+    place-items: end stretch;
+  }
+
+  .library-card {
+    width: 100%;
+    height: min(92dvh, 760px);
+    padding: 14px 14px max(12px, env(safe-area-inset-bottom));
+    border-bottom: none;
+    border-radius: 24px 24px 0 0;
+    animation: rise 0.3s cubic-bezier(0.2, 1, 0.4, 1) both;
+  }
+
+  .lib-game h2 {
+    font-size: 26px;
+  }
+
+  .lib-tabs .game-tab {
+    padding: 5px 4px;
+    font-size: 14px;
+    white-space: nowrap;
   }
 
   .home .panel {
@@ -2342,5 +2842,24 @@ button.user-game {
   body:has(.home) #mute {
     bottom: auto;
     top: 100px;
+  }
+}
+
+/* Phones on their side: the lean / hop buttons sit in the corners, so the hint and banners drop
+   to the bottom and leave the middle of the short screen to the game. */
+@media (max-width: 899px) and (orientation: landscape) {
+  body:has(.tap-controls) .hud-bottom {
+    bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  body:has(.tap-controls) .hud-banner {
+    bottom: max(44px, calc(env(safe-area-inset-bottom) + 34px));
+  }
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(40%);
+    opacity: 0;
   }
 }

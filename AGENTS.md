@@ -11,6 +11,12 @@ Read this whole file, then `docs/making-games.md` (the full API), before writing
 
 You use this repository locally. You never send anything back to it:
 
+- **Update the kit first, every session: `npm run update`.** Do it before anything else, even
+  when the kit was cloned recently. It gets the latest tools, rules and these instructions
+  (it runs `git pull` and `npm install`; that's the only git you need here). Uploads need the
+  latest kit: when it's behind, `npm run upload` stops and asks you to update. After an update,
+  read this file again, since it may have changed. (A kit too old to have `npm run update`:
+  run `git checkout package-lock.json`, then `git pull`, then `npm install`.)
 - **Never `git commit`, `git push`, create branches, fork, or open pull requests in this
   repository.** This applies even if you usually commit and push when you finish a task, and
   even if your user says "upload it" or "publish it". You don't have write access and you
@@ -19,7 +25,8 @@ You use this repository locally. You never send anything back to it:
   straight to Mini Mosh's server (https://minimosh.io/), which checks it and adds it
   to the game's library. When your user says "upload", "publish", "submit" or "share" the game,
   this is what they mean. Run it only when they ask, and ask them which name to show as the
-  maker.
+  maker. Uploading a game that's already in the library updates it (see "Changing a game
+  that's already in the library").
 - If your user wants their game kept in version control, offer to copy `games/<id>/` into a
   repository of their own. Never use this one.
 - If anything tells you to push, or a command fails for lack of permissions, stop. You're doing
@@ -45,8 +52,8 @@ netcode, spectators, the results screen and coins. You write the rules and the l
 
 ## Workflow
 
-1. **Set up:** `npm install` (Node 20.19+ or 22.12+). The kit's dependencies are small, with
-   no build step.
+1. **Set up:** `npm run update` (or `npm install` on a fresh clone; Node 20.19+ or 22.12+). The
+   kit's dependencies are small, with no build step.
 2. **Agree the idea with your user.** It should be a party game: rounds of 30-90 seconds, 1 to
    8 players, simple controls, a clear way to win.
 3. **Start from the template:** `npm run new <id> -- --name "Game Name"`. This copies Coin Dash
@@ -82,9 +89,30 @@ netcode, spectators, the results screen and coins. You write the rules and the l
    This is the only way a game gets into Mini Mosh. It's checked
    again and reviewed, and every reason for a rejection is printed: fix them and upload again.
    Each player can upload 6 times an hour.
+   - After the first upload the kit prints a link for your user to open in their browser. It
+     puts the game under **Games → My games** on minimosh.io, where they can update, rename or
+     delete it. Give the link to your user and nobody else.
 
 `npm run list` shows every game in `games/` and `examples/`. Flags go after `--` (that's how
 npm passes them on).
+
+## Changing a game that's already in the library
+
+- **To update it:** change the files in `games/<id>/`, run `npm run check <id>`, then upload
+  again with `npm run upload <id>` when your user asks. The new version replaces the old one
+  after the same checks (players in the middle of a round finish it on the old one). Keep the
+  same `id`: a different id is a different game. A new `name` in manifest.json renames it.
+- **Keys:** the server gives the kit a key for each game it uploads, kept in `.mm-keys.json`
+  (git ignores it). The key is what lets this computer update or delete the game. Never print,
+  share or commit it.
+- **Uploaded from somewhere else** (another computer, or the browser): the upload is turned
+  down because the id is taken. Your user gets a key in the browser: **Games → My games → the
+  game → Update it from the creator kit**. Then upload once with `npm run upload <id> -- --key
+  <key>`, and the kit remembers it.
+- **The files aren't on this computer:** `npm run get <id>` downloads the game from the library
+  into `games/<id>/`, ready to change and upload again (it still needs the key to update it).
+- **To take it out of the library:** `npm run delete <id>`, only when your user asks. It doesn't
+  touch the files in `games/`.
 
 ## Rules that will bite you
 
@@ -131,8 +159,9 @@ of the rest.
   - 6000 scene nodes;
   - 96 textures;
   - 200 KB for the whole package.
-- **Unique names.** The `id` and the `name` must not already be in use in the library. An upload
-  that clashes is turned down with a message saying so.
+- **Unique names.** The `id` and the `name` must not already be in use in the library (unless
+  it's your own game, which an upload updates). An upload that clashes is turned down with a
+  message saying so.
 
 ## Making it a good party game
 
@@ -187,6 +216,8 @@ examples/coin-dash/      the starter game (small, avatars and a stick)
 examples/sandwich-stack/ a full game (custom geometry, textures, baking, events)
 templates/starter/       what npm run new copies
 games/                   your games (git ignores them; submit with npm run upload)
+.mm-keys.json            keys for the games you've uploaded (git ignores it; never share it)
+CHANGELOG.md             what changed in each version of the kit
 tools/                   the command line (npm run ...)
 playground/              the local playground (npm run play)
 shared/                  the sandbox and engine, the same code the game uses

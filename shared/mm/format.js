@@ -1,6 +1,9 @@
 // The .mm package format: a minigame as data plus sandboxed code. A package is one JSON file:
 //
-//   { "mm": 1, "manifest": { ... }, "files": { "rules.js": "...", "view.js": "..." } }
+//   { "mm": 1, "kit": 2, "manifest": { ... }, "files": { "rules.js": "...", "view.js": "..." } }
+//
+// "kit" is the version of the creator kit that packed it (MM.kitVersion): uploads packed with an
+// older kit than the server's are turned down, so everyone uploads with the latest rules and tools.
 //
 // rules.js runs on the server and on every client (it decides what happens); view.js runs only
 // in the browser (it draws). Both run inside a QuickJS sandbox with no access to the page, the
@@ -8,6 +11,7 @@
 
 export const MM = {
   version: 1,
+  kitVersion: 2, // bump whenever the kit changes in a way uploads should wait for (see the kit's CHANGELOG.md)
   netDelay: 300, // ms the server waits before a tick is final (later inputs move to the next tick)
   futureSlack: 300, // ms ahead of the server's clock an input may be stamped
   sendRate: 10, // snapshots per second (inputs are also passed on the moment they arrive)
@@ -88,26 +92,41 @@ export function packPackage(manifest, files) {
     else if (files[name].length > MM.maxFileBytes) errors.push(`${name} is over ${MM.maxFileBytes / 1024} KB`);
   }
   if (errors.length) throw new Error(errors.join('\n'));
-  const out = JSON.stringify({ mm: MM.version, manifest: clean, files: Object.fromEntries(FILES.map((f) => [f, files[f]])) });
+  const out = JSON.stringify({ mm: MM.version, kit: MM.kitVersion, manifest: clean, files: Object.fromEntries(FILES.map((f) => [f, files[f]])) });
   if (out.length > MM.maxPackageBytes) throw new Error(`package is over ${MM.maxPackageBytes / 1024} KB`);
   return out;
 }
 
-// Reads the text of a .mm file. Throws if anything is invalid.
+// Reads the text of a .mm file. Throws if anything is invalid. kit is 0 for packages made before
+// the kit had versions.
 export function parsePackage(textContent) {
   if (typeof textContent !== 'string' || textContent.length > MM.maxPackageBytes) throw new Error('package too large');
   const pkg = JSON.parse(textContent);
   if (pkg?.mm !== MM.version) throw new Error(`unsupported package version ${pkg?.mm}`);
   const files = pkg.files ?? {};
   packPackage(pkg.manifest, files); // validates
-  return { manifest: checkManifest(pkg.manifest).manifest, files };
+  return { manifest: checkManifest(pkg.manifest).manifest, files, kit: Number.isInteger(pkg.kit) ? pkg.kit : 0 };
 }
 
 // What the lobby needs to list a packaged minigame (same shape as shared/minigames.js entries).
-// source is 'official' (in the repo's games/ folder) or 'user' (uploaded by a player).
-export function lobbyInfo(manifest, { source = 'official', by, uploadedAt } = {}) {
+// source is 'official' (in the repo's games/ folder) or 'user' (uploaded by a player); version
+// changes whenever the package does, so browsers know to fetch it again.
+export function lobbyInfo(manifest, { source = 'official', by, uploadedAt, updatedAt, version } = {}) {
   const { id, name, color, tagline, rules, controls } = manifest;
-  return { id, name, color, tagline, rules, controls, mm: true, source, ...(by ? { by } : {}), ...(uploadedAt ? { uploadedAt } : {}) };
+  return {
+    id,
+    name,
+    color,
+    tagline,
+    rules,
+    controls,
+    mm: true,
+    source,
+    ...(by ? { by } : {}),
+    ...(uploadedAt ? { uploadedAt } : {}),
+    ...(updatedAt ? { updatedAt } : {}),
+    ...(version ? { version } : {}),
+  };
 }
 
 // ---- inputs ------------------------------------------------------------------------------

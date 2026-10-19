@@ -7,6 +7,8 @@ const DEADZONE = 0.2;
 const STICK_RADIUS = 56; // px the touch stick can travel
 const MAX_TAPS = 8;
 const TAP_KEYS = { KeyA: 'L', ArrowLeft: 'L', KeyD: 'R', ArrowRight: 'R', KeyW: 'U', ArrowUp: 'U', Space: 'U' };
+// Everything a minigame puts on screen to press (its HUD, buttons and tap / swipe areas).
+const GAME_CONTROLS = '.hud, .touch-controls, .swipe-zone';
 
 export const isTouchDevice = matchMedia('(pointer: coarse)').matches;
 
@@ -33,6 +35,10 @@ export class Input {
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
+    // Holding a button down on a phone is a long press, which opens the context menu.
+    window.addEventListener('contextmenu', (e) => {
+      if (e.target instanceof Element && e.target.closest(GAME_CONTROLS)) e.preventDefault();
+    });
   }
 
   move() {

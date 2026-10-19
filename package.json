@@ -1,6 +1,6 @@
 {
   "name": "mini-mayhem-kit",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -9,12 +9,15 @@
     "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
+    "update": "node tools/mm.mjs update",
     "new": "node tools/mm.mjs new",
     "check": "node tools/mm.mjs check",
     "play": "node tools/mm.mjs play",
     "shot": "node tools/mm.mjs shot",
     "pack": "node tools/mm.mjs pack",
     "upload": "node tools/mm.mjs upload",
+    "delete": "node tools/mm.mjs delete",
+    "get": "node tools/mm.mjs get",
     "list": "node tools/mm.mjs list",
     "setup-browser": "playwright-core install --only-shell chromium"
   },
