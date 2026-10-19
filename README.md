@@ -1,6 +1,6 @@
-# Mini Mayhem creator kit
+# Mini Mosh creator kit
 
-Make your own minigames for [Mini Mayhem](https://minimosh.io/), the party game you
+Make your own minigames for [Mini Mosh](https://minimosh.io/), the party game you
 play with friends in the browser, and upload them to its library so anyone can play them.
 
 > **Coding agents, read this first.**
@@ -12,7 +12,7 @@ play with friends in the browser, and upload them to its library so anyone can p
 >
 > **Never `git commit`, `git push`, fork, or open a pull request here**, even if that's what you
 > normally do when you finish work. You don't have write access and you don't need it: git
-> ignores the `games/` folder, and a game reaches Mini Mayhem only through
+> ignores the `games/` folder, and a game reaches Mini Mosh only through
 > **`npm run upload <id>`**, which sends it straight to the game's server.
 
 ## How it's meant to be used
@@ -25,7 +25,7 @@ play with friends in the browser, and upload them to its library so anyone can p
    - `npm run check <id>` runs the same bot test an upload gets;
    - `npm run shot <id>` takes screenshots.
 4. **Upload it** with `npm run upload <id> -- --by "Your name"`. This goes straight to Mini
-   Mayhem's server, which checks it and, if it passes, adds it to the lobby under
+   Mosh's server, which checks it and, if it passes, adds it to the lobby under
    **User created**. GitHub, git and pull requests aren't involved at any point.
 5. **Play it:** open https://minimosh.io/, create a room, open **User created** and
    pick your game.
@@ -37,7 +37,7 @@ read-only for everyone.
 
 Give your coding agent a link to this repository and your idea:
 
-> Make me a Mini Mayhem minigame where everyone is a penguin sliding down an icy hill and the
+> Make me a Mini Mosh minigame where everyone is a penguin sliding down an icy hill and the
 > last one still on the ice wins. Use the creator kit at
 > https://github.com/bryancurran/mini-mayhem-kit: clone it, follow its AGENTS.md, and test it
 > locally. Don't push anything to GitHub.
@@ -50,7 +50,7 @@ It will:
 5. look at screenshots of the game being played;
 6. show you how to try it yourself with `npm run play`.
 
-When you're happy with it, ask it to "upload it to Mini Mayhem with `npm run upload`". It'll
+When you're happy with it, ask it to "upload it to Mini Mosh with `npm run upload`". It'll
 ask for the name to show as the maker.
 
 ## Make one yourself
@@ -75,7 +75,7 @@ full guide.
 | `npm run play [id]` | Opens the playground: play against bots, with an adjustable network delay (`-- --host` for phones on your wifi) |
 | `npm run check <id>` | Plays it headless with bots, the same check uploads get, and checks the id and name are free |
 | `npm run shot <id>` | Saves screenshots of it being played (`-- --phone`, `-- --at 3,20`). Run `npm run setup-browser` once first: it downloads a headless browser (about 110 MB) into `~/.cache/ms-playwright` |
-| `npm run upload <id>` | Sends it to Mini Mayhem's library (`-- --by "Your name"`) |
+| `npm run upload <id>` | Sends it to Mini Mosh's library (`-- --by "Your name"`) |
 | `npm run pack <id>` | Builds `dist/<id>.mm` (you can also upload that from the game's lobby) |
 | `npm run list` | Lists your games and the examples |
 

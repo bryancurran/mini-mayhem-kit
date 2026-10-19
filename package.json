@@ -4,7 +4,7 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "Make minigames for Mini Mayhem, the browser party game: templates, examples, a local playground, checks and uploads",
+  "description": "Make minigames for Mini Mosh, the browser party game: templates, examples, a local playground, checks and uploads",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },

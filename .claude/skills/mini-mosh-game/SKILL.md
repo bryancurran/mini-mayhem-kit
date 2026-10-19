@@ -1,9 +1,9 @@
 ---
-name: mini-mayhem-game
-description: Make, change, test and upload Mini Mayhem party minigames (.mm packages) in this repository. Use whenever asked to create a minigame, change one, find out why one fails its check, take screenshots of one, or upload one.
+name: mini-mosh-game
+description: Make, change, test and upload Mini Mosh party minigames (.mm packages) in this repository. Use whenever asked to create a minigame, change one, find out why one fails its check, take screenshots of one, or upload one.
 ---
 
-# Making a Mini Mayhem minigame
+# Making a Mini Mosh minigame
 
 1. Read `AGENTS.md` (the workflow and the rules that matter) and `docs/making-games.md` (the
    whole API) before writing any code. Skim `examples/coin-dash/` (small) and
@@ -16,7 +16,7 @@ description: Make, change, test and upload Mini Mayhem party minigames (.mm pack
    prints. Run `npm run setup-browser` once if it asks for a browser.
 6. Ask the user to play it with `npm run play <id>`.
 7. Only upload when the user asks: `npm run upload <id> -- --by "Their name"`. That sends the
-   game to Mini Mayhem's server.
+   game to Mini Mosh's server.
 
 Never `git commit`, `git push`, fork or open pull requests in this repository. It's a local
 toolkit, games aren't part of it (git ignores `games/`), and `npm run upload` is the only way

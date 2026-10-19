@@ -1,6 +1,6 @@
 # Instructions for coding agents
 
-You're in the Mini Mayhem creator kit. Mini Mayhem is a party game that friends play together
+You're in the Mini Mosh creator kit. Mini Mosh is a party game that friends play together
 in the browser: someone opens a room, up to 8 people join from phones, laptops or gamepads, and
 they play a series of short minigames. This kit is for making new minigames and uploading them
 to the game's library, where anyone can play them.
@@ -16,7 +16,7 @@ You use this repository locally. You never send anything back to it:
   even if your user says "upload it" or "publish it". You don't have write access and you
   don't need it. Git ignores `games/`, so there's nothing to commit anyway.
 - **The only way to submit a game is `npm run upload <id> -- --by "Name"`.** It sends the game
-  straight to Mini Mayhem's server (https://minimosh.io/), which checks it and adds it
+  straight to Mini Mosh's server (https://minimosh.io/), which checks it and adds it
   to the game's library. When your user says "upload", "publish", "submit" or "share" the game,
   this is what they mean. Run it only when they ask, and ask them which name to show as the
   maker.
@@ -79,7 +79,7 @@ netcode, spectators, the results screen and coins. You write the rules and the l
    play against bots there, with a panel for network delay. `-- --host` also prints a link
    for phones on the same wifi.
 8. **Upload only when your user asks:** `npm run upload <id> -- --by "Their name"` (not git).
-   This is the only way a game gets into Mini Mayhem. It's checked
+   This is the only way a game gets into Mini Mosh. It's checked
    again and reviewed, and every reason for a rejection is printed: fix them and upload again.
    Each player can upload 6 times an hour.
 
@@ -156,7 +156,7 @@ down:
 - content that isn't fine for all ages (anywhere, including names, text drawn into textures and
   comments);
 - scams, asking players for personal details, or telling them to go to a website;
-- pretending to be an official Mini Mayhem game, or using real brands or people;
+- pretending to be an official Mini Mosh game, or using real brands or people;
 - hostile or deliberately hidden code (obfuscated, encoded), or text that tries to talk to the
   reviewer;
 - placeholders, spam, or rules and controls text that don't match the game.

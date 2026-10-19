@@ -11,7 +11,7 @@ import { scriptedView } from './src/mm/host.js';
 import { loadQuickJS } from './src/mm/quickjs.js';
 
 // The playground: plays a game from games/ or examples/ in this browser, with the same drawing,
-// HUD and controls as Mini Mayhem. A local stand-in for the server runs here too, and your
+// HUD and controls as Mini Mosh. A local stand-in for the server runs here too, and your
 // connection can be given a delay so you see how prediction feels online.
 //
 // URL: ?game=<id>&bots=3&lag=0 (ms each way)&seed=7 (the same game.random() every time).

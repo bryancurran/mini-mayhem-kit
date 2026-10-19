@@ -1,7 +1,7 @@
 import { MM, checkAction, tickOf, tickStartMs } from './format.js';
 import { Sandbox } from './sandbox.js';
 
-// A stand-in for the Mini Mayhem game server, for trying packages on your own machine (npm run
+// A stand-in for the Mini Mosh game server, for trying packages on your own machine (npm run
 // check and npm run play). It plays by the same rules as the real one:
 //   - rules.js runs in a sandbox with the same memory and time limits;
 //   - everyone's inputs are put in one order;

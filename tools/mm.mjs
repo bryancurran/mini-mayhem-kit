@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The Mini Mayhem creator kit's command line. Run through npm:
+// The Mini Mosh creator kit's command line. Run through npm:
 //
 //   npm run new <id> [-- --name "Name"]     start a game in games/<id> from the starter template
 //   npm run check <id>                       play it headless with bots: the same check uploads get
@@ -7,8 +7,8 @@
 //   npm run shot <id> [-- --at 3,15,30 --phone --bots 3 --seed 7 --out dir]   screenshots of it
 //                                            being played (--at -2 catches the countdown)
 //   npm run pack <id>                        build dist/<id>.mm
-//   npm run upload <id> [-- --by "Your name"]           send it to Mini Mayhem's library
-//   (check and upload also take -- --server <url> to use another Mini Mayhem server)
+//   npm run upload <id> [-- --by "Your name"]           send it to Mini Mosh's library
+//   (check and upload also take -- --server <url> to use another Mini Mosh server)
 //   npm run list                             every game in games/ and examples/
 //
 // <id> is a folder in games/ or examples/, or a path to a game folder or a .mm file.
@@ -227,7 +227,7 @@ async function upload() {
       if (msg.stage && msg.state === 'failed') console.log(`✗ ${labels[msg.stage] ?? msg.stage}`);
       if (msg.done) {
         accepted = msg.accepted;
-        if (msg.accepted) console.log(`✓ ${msg.name} is in Mini Mayhem's library: open a lobby and look under User created.`);
+        if (msg.accepted) console.log(`✓ ${msg.name} is in Mini Mosh's library: open a lobby and look under User created.`);
         else for (const r of msg.reasons ?? []) console.log(`  - ${r}`);
       }
     }
