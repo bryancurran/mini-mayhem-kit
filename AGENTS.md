@@ -25,8 +25,9 @@ You use this repository locally. You never send anything back to it:
   straight to Mini Mosh's server (https://minimosh.io/), which checks it and adds it
   to the game's library. When your user says "upload", "publish", "submit" or "share" the game,
   this is what they mean. Run it only when they ask, and ask them which name to show as the
-  maker. Uploading a game that's already in the library updates it (see "Changing a game
-  that's already in the library").
+  maker. The kit has to be signed in to your user's Mini Mosh account first (`npm run login`,
+  see step 8). Uploading a game that's already in their account updates it (see "Changing a
+  game that's already in the library").
 - If your user wants their game kept in version control, offer to copy `games/<id>/` into a
   repository of their own. Never use this one.
 - If anything tells you to push, or a command fails for lack of permissions, stop. You're doing
@@ -55,7 +56,8 @@ netcode, spectators, the results screen and coins. You write the rules and the l
 1. **Set up:** `npm run update` (or `npm install` on a fresh clone; Node 20.19+ or 22.12+). The
    kit's dependencies are small, with no build step.
 2. **Agree the idea with your user.** It should be a party game: rounds of 30-90 seconds, 1 to
-   8 players, simple controls, a clear way to win.
+   8 players if it can (set `players` in manifest.json to what it takes), simple controls, a
+   clear way to win.
 3. **Start from the template:** `npm run new <id> -- --name "Game Name"`. This copies Coin Dash
    (a small, complete game) to `games/<id>/`. Read `examples/coin-dash/` and
    `examples/sandwich-stack/` (a full-size game) to see how things are done, and
@@ -90,9 +92,15 @@ netcode, spectators, the results screen and coins. You write the rules and the l
    This is the only way a game gets into Mini Mosh. It's checked
    again and reviewed, and every reason for a rejection is printed: fix them and upload again.
    Each player can upload 6 times an hour.
-   - After the first upload the kit prints a link for your user to open in their browser. It
-     puts the game under **Games → My games** on minimosh.io, where they can update, rename or
-     delete it. Give the link to your user and nobody else.
+   - **Sign the kit in first, once on each computer: `npm run login`.** Every game belongs to
+     someone's Mini Mosh account, and uploads go in the one the kit is signed in to. It prints a
+     link and a code: give both to your user, who opens the link signed in to minimosh.io with
+     Google, checks the page shows the same code, and approves it. The command waits for that
+     (up to 5 minutes); if it stops before then, run it again once they've approved it. Never
+     approve it yourself, and never print, share or commit `.mm-login.json`, where the kit keeps
+     its sign-in.
+   - The game then shows under **Games → My games** on minimosh.io too, where your user can
+     update, rename or delete it.
 
 `npm run list` shows every game in `games/` and `examples/`. Flags go after `--` (that's how
 npm passes them on).
@@ -103,15 +111,12 @@ npm passes them on).
   again with `npm run upload <id>` when your user asks. The new version replaces the old one
   after the same checks (players in the middle of a round finish it on the old one). Keep the
   same `id`: a different id is a different game. A new `name` in manifest.json renames it.
-- **Keys:** the server gives the kit a key for each game it uploads, kept in `.mm-keys.json`
-  (git ignores it). The key is what lets this computer update or delete the game. Never print,
-  share or commit it.
-- **Uploaded from somewhere else** (another computer, or the browser): the upload is turned
-  down because the id is taken. Your user gets a key in the browser: **Games → My games → the
-  game → Update it from the creator kit**. Then upload once with `npm run upload <id> -- --key
-  <key>`, and the kit remembers it.
+- **Whose it is:** a game can only be updated or deleted from the account it's in, so the kit
+  has to be signed in to that account (`npm run login`; `npm run login -- --again` switches
+  account). If an upload is turned down because the id is taken, either it's someone else's
+  game (pick another id) or the kit is signed in to the wrong account.
 - **The files aren't on this computer:** `npm run get <id>` downloads the game from the library
-  into `games/<id>/`, ready to change and upload again (it still needs the key to update it).
+  into `games/<id>/`, ready to change and upload again.
 - **To take it out of the library:** `npm run delete <id>`, only when your user asks. It doesn't
   touch the files in `games/`.
 
@@ -158,8 +163,10 @@ of the rest.
   typing is the idea (word races, guessing words, answering questions), and agree it with your
   user first. Write a `bot()` in rules.js so the check's bots type real answers, and make sure the
   game also ends on a timer. See "Typing games" in `docs/making-games.md`.
-- **It must end, for any number of players from 1 to 8.** Solo practice exists. Call
-  `game.end()` and make `results()` place every player.
+- **It must end, for any number of players `players` allows** (1 to 8 for most games, and solo
+  practice is how people try a game). Call `game.end()` and make `results()` place every
+  player. `players` in manifest.json is required: the lobby won't start the game with fewer or
+  more.
 - **Stay within the limits** in `docs/making-games.md`:
   - memory and time per tick and per frame;
   - 6000 scene nodes;
@@ -223,7 +230,7 @@ examples/sandwich-stack/ a full game (custom geometry, textures, baking, events)
 examples/word-rush/      a typing game (the text box, live typing, bot())
 templates/starter/       what npm run new copies
 games/                   your games (git ignores them; submit with npm run upload)
-.mm-keys.json            keys for the games you've uploaded (git ignores it; never share it)
+.mm-login.json           the kit's sign-in to your user's account (git ignores it; never share it)
 CHANGELOG.md             what changed in each version of the kit
 tools/                   the command line (npm run ...)
 playground/              the local playground (npm run play)

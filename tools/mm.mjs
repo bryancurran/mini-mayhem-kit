@@ -8,11 +8,14 @@
 //   npm run shot <id> [-- --at 3,15,30 --phone --bots 3 --seed 7 --out dir]   screenshots of it
 //                                            being played (--at -2 catches the countdown)
 //   npm run pack <id>                        build dist/<id>.mm
-//   npm run upload <id> [-- --by "Your name" --key <key>]   send it to Mini Mosh's library, or
-//                                            update it there if you uploaded it before
+//   npm run login                            sign the kit in to your Mini Mosh account (once on
+//                                            each computer): uploads go in that account
+//   npm run logout                           sign it out again
+//   npm run upload <id> [-- --by "Your name"]   send it to Mini Mosh's library, or update it
+//                                            there if it's one of your games
 //   npm run delete <id>                      take your game out of Mini Mosh's library
 //   npm run get <id>                         download a game from the library into games/<id>
-//   (check, upload, delete and get also take -- --server <url> to use another Mini Mosh server)
+//   (check, login, upload, delete and get also take -- --server <url> to use another server)
 //   npm run list                             every game in games/ and examples/
 //
 // <id> is a folder in games/ or examples/, or a path to a game folder or a .mm file.
@@ -60,38 +63,78 @@ async function checkKitVersion({ required = false } = {}) {
   console.log(`! ${message}\n`);
 }
 
-// ---- keys for the games you've uploaded ---------------------------------------------------
+// ---- signing in ---------------------------------------------------------------------------
 
-// The server hands the kit a key for each game it uploads, which lets this computer update or
-// delete it later. Kept in .mm-keys.json (git ignores it): { "<server>": { "<id>": "<key>" } }.
-const KEYS_FILE = path.join(ROOT, '.mm-keys.json');
-const keys = {
+// Every game in the library belongs to someone's Mini Mosh account. npm run login signs this
+// computer's kit in to one (approved in the browser), and uploads and deletes go as that account.
+// Kept in .mm-login.json (git ignores it): { "<server>": { token, name, email } }, or while a
+// sign-in waits to be approved, { "<server>": { waiting: { id, secret, code, at } } }.
+const LOGIN_FILE = path.join(ROOT, '.mm-login.json');
+const WAITING_MS = 9 * 60_000; // the server keeps a sign-in waiting for 10 minutes
+const logins = {
   read() {
     try {
-      return JSON.parse(fs.readFileSync(KEYS_FILE, 'utf8'));
+      return JSON.parse(fs.readFileSync(LOGIN_FILE, 'utf8'));
     } catch {
       return {};
     }
   },
-  get(id) {
-    return this.read()[server()]?.[id] ?? null;
+  get() {
+    return this.read()[server()] ?? null;
   },
-  set(id, key) {
+  set(value) {
     const all = this.read();
-    (all[server()] ??= {})[id] = key;
-    this.write(all);
-  },
-  forget(id) {
-    const all = this.read();
-    delete all[server()]?.[id];
-    this.write(all);
-  },
-  write(all) {
-    fs.writeFileSync(KEYS_FILE, `${JSON.stringify(all, null, 2)}\n`, { mode: 0o600 });
+    if (value) all[server()] = value;
+    else delete all[server()];
+    fs.writeFileSync(LOGIN_FILE, `${JSON.stringify(all, null, 2)}\n`, { mode: 0o600 });
   },
 };
+const loginHeaders = () => (logins.get()?.token ? { 'X-MM-Login': logins.get().token } : {});
+const who = (a) => (a?.name && a?.email ? `${a.name} (${a.email})` : (a?.email ?? a?.name ?? 'your account'));
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const commands = { update, new: create, check, play, shot, pack, upload, delete: remove, get, list };
+async function post(pathname, body, headers = {}) {
+  const res = await fetch(new URL(pathname, server()), { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+  return { status: res.status, data: await res.json().catch(() => ({})) };
+}
+
+// The account the kit is signed in to ({ name, email }), or null.
+async function whoAmI() {
+  if (!logins.get()?.token) return null;
+  const res = await fetch(new URL('kit/me', server()), { headers: loginHeaders(), signal: AbortSignal.timeout(8000) });
+  if (res.status === 401) logins.set(null);
+  return res.ok ? res.json() : null;
+}
+
+// Whether a sign-in waiting to be approved has been: true (and it's kept), false (still
+// waiting), or an error if it ran out.
+async function finishWaiting(waiting) {
+  const { status, data } = await post('kit/login/wait', { id: waiting.id, secret: waiting.secret });
+  if (status === 404) {
+    logins.set(null);
+    throw new Error('That sign-in ran out before it was approved. Run npm run login again.');
+  }
+  if (status !== 200) throw new Error(data.error ?? `The server answered ${status}.`);
+  if (!data.token) return false;
+  logins.set({ token: data.token, name: data.name, email: data.email });
+  console.log(`✓ Signed in to ${who(data)}. Games you upload from this computer go in that account.`);
+  return true;
+}
+
+const approvalLink = (waiting) => new URL(`#kit=${waiting.id}`, server()).href;
+
+// For uploads and deletes: the kit has to be signed in (a sign-in approved since the last try
+// counts).
+async function needLogin() {
+  const saved = logins.get();
+  if (saved?.token) return;
+  const fresh = saved?.waiting && Date.now() - saved.waiting.at < WAITING_MS;
+  if (fresh && (await finishWaiting(saved.waiting))) return;
+  if (fresh) throw new Error(`The kit's sign-in hasn't been approved yet. Open ${approvalLink(saved.waiting)} (signed in to Mini Mosh), approve it, then try again.`);
+  throw new Error('Sign the kit in to your Mini Mosh account first: run npm run login (once on each computer). Every game in the library belongs to an account.');
+}
+
+const commands = { update, new: create, check, play, shot, pack, login, logout, upload, delete: remove, get, list };
 if (!commands[command]) {
   const lines = fs.readFileSync(new URL(import.meta.url), 'utf8').split('\n');
   const usage = lines.slice(1, lines.findIndex((l, i) => i > 0 && !l.startsWith('//')));
@@ -110,10 +153,10 @@ try {
 // ---- update -----------------------------------------------------------------------------------
 
 // Pulls the latest kit from GitHub and installs what it needs. Your games are safe: git ignores
-// games/, and the keys for the games you've uploaded (.mm-keys.json).
+// games/, and the kit's sign-in (.mm-login.json).
 async function update() {
   if (!fs.existsSync(path.join(ROOT, '.git'))) {
-    throw new Error(`This kit wasn't cloned with git, so it can't update itself. Clone it again from ${KIT_REPO} and move your games/ folder (and .mm-keys.json, if you have one) across.`);
+    throw new Error(`This kit wasn't cloned with git, so it can't update itself. Clone it again from ${KIT_REPO} and move your games/ folder across.`);
   }
   const before = MM.kitVersion;
   console.log('Getting the latest creator kit…');
@@ -167,8 +210,10 @@ async function check() {
   const m = pkg.manifest;
   if (text.length > MM.maxUploadBytes) throw new Error(`The package is ${Math.ceil(text.length / 1024)} KB; uploads can be at most ${MM.maxUploadBytes / 1024} KB.`);
   const { runtime } = await import('./runtime.mjs');
-  const { playtest } = await import('../shared/mm/playtest.js');
-  const players = typeof flags.players === 'string' ? flags.players.split(',').map(Number) : [3, 1];
+  const { playtest, testCounts } = await import('../shared/mm/playtest.js');
+  const players = typeof flags.players === 'string' ? flags.players.split(',').map(Number) : testCounts(m);
+  const outside = players.filter((n) => !(n >= m.players.min && n <= m.players.max));
+  if (outside.length) throw new Error(`This game takes ${m.players.min} to ${m.players.max} players (players in manifest.json), so it can't be tested with ${outside.join(', ')}.`);
   console.log(`${m.name} (${m.id}) from ${path.relative(ROOT, found.dir ?? found.file)}: ${(text.length / 1024).toFixed(1)} KB`);
   console.log(`Playing ${players.map((n) => `${n} player${n > 1 ? 's' : ''}`).join(', then ')} with bots…`);
   const report = playtest(pkg, { runtime, players, maxSeconds: 300, clientMemory: 48 * 1024 * 1024, log: console });
@@ -200,12 +245,12 @@ async function checkNameOnline(m) {
   const sameId = all.find((g) => g.id === m.id);
   const sameName = all.find((g) => g.name.trim().toLowerCase() === m.name.trim().toLowerCase());
   const host = new URL(server()).host;
-  if (sameId && keys.get(m.id)) {
-    console.log(`✓ You uploaded this game before (the kit has its key): npm run upload ${m.id} updates it on ${host}.`);
+  if (sameId && (await myGames()).has(m.id)) {
+    console.log(`✓ It's one of your games (in the account the kit is signed in to): npm run upload ${m.id} updates it on ${host}.`);
     if (sameName && sameName.id !== m.id) console.log(`! The name "${m.name}" is used by another game in the library: change "name" in manifest.json before uploading.`);
     return;
   }
-  if (sameId) console.log(`! The id "${m.id}" is already used in the library ("${sameId.name}"): change "id" in manifest.json before uploading. (If it's your game, see "Updating a game" in docs/making-games.md.)`);
+  if (sameId) console.log(`! The id "${m.id}" is already used in the library ("${sameId.name}"): change "id" in manifest.json before uploading. (If it's your game, sign the kit in to the account it's in: npm run login.)`);
   if (sameName && sameName !== sameId) console.log(`! The name "${m.name}" is already used in the library: change "name" in manifest.json before uploading.`);
   if (!sameId && !sameName) console.log(`✓ The id and name are free in the library (${host}).`);
 }
@@ -300,6 +345,56 @@ async function pack() {
   console.log(`packed ${path.relative(process.cwd(), out)} (${(text.length / 1024).toFixed(1)} KB${text.length > MM.maxUploadBytes ? `, over the ${MM.maxUploadBytes / 1024} KB upload limit` : ''})`);
 }
 
+// The ids of the games in the account the kit is signed in to (none when it isn't).
+async function myGames() {
+  if (!logins.get()?.token) return new Set();
+  try {
+    const res = await fetch(new URL('mm/mine', server()), { headers: loginHeaders(), signal: AbortSignal.timeout(8000) });
+    return new Set(res.ok ? (await res.json()).games : []);
+  } catch {
+    return new Set();
+  }
+}
+
+// ---- login -------------------------------------------------------------------------------
+
+// Prints a link to approve in the browser, then waits for it (up to 5 minutes, or -- --wait
+// <seconds>). Stopped before then, it carries on waiting for the same sign-in when run again.
+async function login() {
+  const host = new URL(server()).host;
+  if (logins.get()?.token && !flags.again) {
+    const me = await whoAmI();
+    if (me) return console.log(`✓ The kit is signed in to ${who(me)} on ${host}. (npm run login -- --again signs in to another account; npm run logout signs out.)`);
+    console.log('The kit’s sign-in has run out or was signed out: signing in again.');
+  }
+  let waiting = logins.get()?.waiting;
+  if (!waiting || Date.now() - waiting.at > WAITING_MS) {
+    const { status, data } = await post('kit/login', {});
+    if (status !== 200) throw new Error(data.error ?? `The server answered ${status}.`);
+    waiting = { id: data.id, secret: data.secret, code: data.code, at: Date.now() };
+    logins.set({ waiting });
+  }
+  console.log(`To sign the kit in to your Mini Mosh account, open this link and approve it (signed in with Google):
+
+  ${approvalLink(waiting)}
+
+The page shows a code: approve it only if it's ${waiting.code}.
+Waiting for it to be approved…`);
+  const until = Date.now() + (Number(flags.wait) || 300) * 1000;
+  while (Date.now() < until) {
+    await sleep(2000);
+    if (await finishWaiting(waiting)) return;
+  }
+  throw new Error('Not approved yet. Once it is, run npm run login again (the link works for 10 minutes).');
+}
+
+async function logout() {
+  const headers = loginHeaders();
+  if (headers['X-MM-Login']) await post('kit/logout', {}, headers).catch(() => {});
+  logins.set(null);
+  console.log(`✓ The kit is signed out on this computer (${new URL(server()).host}).`);
+}
+
 // ---- upload ------------------------------------------------------------------------------
 
 async function upload() {
@@ -307,12 +402,14 @@ async function upload() {
   const { id, name } = pkg.manifest;
   await checkKitVersion({ required: true });
   if (pkg.kit < MM.kitVersion) throw new Error(`${path.basename(args[0])} was packed with an older kit (v${pkg.kit}). Upload the game's folder instead, or pack it again with npm run pack.`);
+  await needLogin();
   const target = new URL('mm/upload', server());
   if (typeof flags.by === 'string') target.searchParams.set('by', flags.by.slice(0, 16));
-  const key = typeof flags.key === 'string' ? flags.key.trim() : keys.get(id);
-  console.log(`Uploading ${name} (${id}) to ${target.origin}${target.pathname.replace(/mm\/upload$/, '')}${key ? ' (an update, if it\'s in the library)' : ''}…`);
-  const headers = { 'Content-Type': 'application/octet-stream', 'X-MM-Kit': String(MM.kitVersion), ...(key ? { 'X-MM-Key': key } : {}) };
+  const account = logins.get();
+  console.log(`Uploading ${name} (${id}) to ${target.origin}${target.pathname.replace(/mm\/upload$/, '')}, into ${who(account)}'s games…`);
+  const headers = { 'Content-Type': 'application/octet-stream', 'X-MM-Kit': String(MM.kitVersion), ...loginHeaders() };
   const res = await fetch(target, { method: 'POST', body: text, headers });
+  if (res.status === 401) logins.set(null); // its sign-in ran out
   const labels = { queued: 'Waiting for other uploads', file: 'Checking the file', playtest: 'Play-testing with bots', review: 'Safety review' };
   const decoder = new TextDecoder();
   let buffered = '';
@@ -331,25 +428,12 @@ async function upload() {
       if (msg.done) {
         accepted = msg.accepted;
         if (msg.accepted) {
-          if (msg.key) keys.set(id, msg.key);
-          else if (key) keys.set(id, key); // a key given with --key worked: keep it
           if (msg.updated) console.log(`✓ ${msg.name} is updated in Mini Mosh's library. Games from now on use this version.`);
-          else {
-            console.log(`✓ ${msg.name} is in Mini Mosh's library: open a lobby and look under User created.`);
-            if (msg.key) {
-              console.log(`\nTo look after it in your browser (update, rename or delete it under Games → My games), open this link once:`);
-              console.log(`  ${new URL(`#claim=${encodeURIComponent(id)}.${msg.key}`, server()).href}`);
-              console.log(`The kit keeps this game's key in .mm-keys.json, so npm run upload ${id} updates it from now on. Don't share the link or the key: they let anyone change the game.`);
-            }
-          }
+          else console.log(`✓ ${msg.name} is in Mini Mosh's library: open a lobby and look under User created. It's in ${who(account)}'s games (Games → My games on the site), to update, rename or delete there too.`);
         } else {
           for (const r of msg.reasons ?? []) console.log(`  - ${r}`);
           if ((msg.reasons ?? []).some((r) => r.includes('already a game with the id'))) {
-            console.log(
-              key
-                ? `  The kit's key for "${id}" didn't work (it may have been replaced in the browser). Get a new one under Games → My games → ${name} → Update it from the creator kit, then upload with -- --key <key>.`
-                : `  If it's your game, get its key under Games → My games → ${name} → Update it from the creator kit, then upload with -- --key <key>. Otherwise pick another id.`,
-            );
+            console.log(`  If it's your game, sign the kit in to the account it's in (npm run login -- --again). Otherwise pick another id.`);
           }
         }
       }
@@ -370,13 +454,13 @@ async function remove() {
     // Not on this computer any more: the id as given.
   }
   if (!/^[a-z][a-z0-9-]{1,30}$/.test(id)) throw new Error(`"${id}" isn't a game id (lowercase letters, digits and dashes).`);
-  const key = typeof flags.key === 'string' ? flags.key.trim() : keys.get(id);
+  await needLogin();
   const host = new URL(server()).host;
-  if (!key) throw new Error(`The kit has no key for "${id}" on ${host}, so it can't delete it from here. Delete it in the browser instead: Games → My games.`);
-  const res = await fetch(new URL(`mm/${encodeURIComponent(id)}/delete`, server()), { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-MM-Key': key }, body: '{}' });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.deleted) throw new Error(data.error ?? `The server answered ${res.status}.`);
-  keys.forget(id);
+  const { status, data } = await post(`mm/${encodeURIComponent(id)}/delete`, {}, loginHeaders());
+  if (status !== 200 || !data.deleted) {
+    if (status === 403) throw new Error(`"${id}" isn't one of the games in ${who(logins.get())}'s account, so the kit can't delete it.`);
+    throw new Error(data.error ?? `The server answered ${status}.`);
+  }
   console.log(`✓ Deleted "${id}" from Mini Mosh's library (${host}). Your files in games/ are untouched.`);
 }
 
@@ -395,11 +479,16 @@ async function get() {
   const { parsePackage } = await import('../shared/mm/format.js');
   const pkg = parsePackage(await res.text());
   const { mm, ...manifest } = pkg.manifest;
+  // Games from before kit v4 don't say how many players they take: the library knows.
+  if (!manifest.players) {
+    const info = (await fetchCatalog())?.games?.find((g) => g.id === id);
+    manifest.players = { min: info?.minPlayers ?? 1, max: info?.maxPlayers ?? MM.maxPlayers };
+  }
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   for (const f of ['rules.js', 'view.js']) fs.writeFileSync(path.join(dir, f), pkg.files[f]);
   console.log(`✓ Downloaded ${manifest.name} into games/${id}.`);
-  console.log(keys.get(id) ? `  The kit has its key: npm run upload ${id} updates it.` : `  To update it in the library you need its key: see "Changing a game that's already in the library" in AGENTS.md.`);
+  console.log((await myGames()).has(id) ? `  It's one of your games: npm run upload ${id} updates it.` : `  Only the account it's in can update it in the library (sign the kit in to it with npm run login).`);
 }
 
 // ---- list --------------------------------------------------------------------------------

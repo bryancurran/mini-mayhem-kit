@@ -35,6 +35,10 @@ export function packGame(found) {
   } catch (e) {
     throw new Error(`manifest.json isn't valid JSON: ${e.message}`);
   }
+  // Every game says how many players it takes (games from before kit v4 may not yet).
+  if (manifest?.players === undefined) {
+    throw new Error('manifest.json needs "players": the fewest and the most players the game takes, like "players": { "min": 1, "max": 8 } (see docs/making-games.md).');
+  }
   const read = (f) => fs.readFileSync(path.join(found.dir, f), 'utf8');
   return packPackage(manifest, { 'rules.js': read('rules.js'), 'view.js': read('view.js') });
 }

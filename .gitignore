@@ -5,6 +5,8 @@ shots/
 # Your games are yours: they're submitted with npm run upload, never committed here.
 games/*
 !games/.gitkeep
-# The keys for the games you've uploaded (npm run upload keeps them): they let anyone change
-# those games, so they stay on this computer.
+# The kit's sign-in to your Mini Mosh account (npm run login keeps it): it lets anyone upload and
+# delete games in your account, so it stays on this computer.
+.mm-login.json
+# Keys for games uploaded with kits before v4 (no longer used).
 .mm-keys.json

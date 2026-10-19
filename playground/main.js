@@ -66,7 +66,10 @@ async function start() {
   registerMinigame(lobbyInfo(m));
   document.title = `${m.name} · playground`;
 
-  const ids = ['you', ...BOT_NAMES.slice(0, bots).map((n) => n.toLowerCase())];
+  // As many bots as asked for, within the players the game takes (you're one of them).
+  const range = m.players ?? { min: 1, max: MM.maxPlayers };
+  const botCount = Math.max(range.min - 1, Math.min(range.max - 1, bots));
+  const ids = ['you', ...BOT_NAMES.slice(0, botCount).map((n) => n.toLowerCase())];
   const players = new Map(ids.map((pid, i) => [pid, { id: pid, name: i === 0 ? 'You' : BOT_NAMES[i - 1], color: COLORS[i] }]));
   const Game = localGame(pkg, { QuickJS, ENGINE, clock: performance, log: console, seed });
   const game = new Game(ids);

@@ -95,7 +95,7 @@ class ScriptedView {
     let bottom = 0;
     let right = 0;
     for (const r of rects('.hud-chips .chip, .hud-timer')) top = Math.max(top, r.bottom + 8);
-    for (const r of rects('.hud-bottom, .hud-type, .dash-btn, .tap-zone')) bottom = Math.max(bottom, height - r.top + 8);
+    for (const r of rects('.hud-bottom, .hud-type, .dash-btn, .tap-zone span')) bottom = Math.max(bottom, height - r.top + 8);
     for (const r of rects('.climb-tower')) right = Math.max(right, width - r.left + 8);
     const w = Math.max(1, width - right);
     const h = Math.max(1, height - top - bottom);

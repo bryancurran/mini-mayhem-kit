@@ -3,6 +3,21 @@
 `npm run update` gets the latest kit and prints what changed since yours. Uploads need the
 latest kit: Mini Mosh turns down games packed with an older one, and says how to update.
 
+## v4 (October 2026)
+
+- **Sign the kit in: `npm run login`.** Every game in the library now belongs to someone's Mini
+  Mosh account. Run `npm run login` once on each computer: it prints a link and a code; open the
+  link signed in to minimosh.io with Google, check the code matches, and approve it. Uploads
+  then go straight into your account (no more links to claim them), and `npm run upload` and
+  `npm run delete` work on any game in it, from any computer you've signed in on.
+  `npm run logout` signs the kit out. The kit keeps its sign-in in `.mm-login.json` (git ignores
+  it). Don't share it. Game keys (`.mm-keys.json`) aren't used any more.
+- **`players` in manifest.json (required):** the fewest and most players your game takes,
+  like `"players": { "min": 1, "max": 8 }`. The lobby won't start it with fewer or more, and
+  the check, the playground and `npm run shot` keep their bots inside it. Add it to games you
+  made with an older kit (1 to 8, unless the game can't work like that).
+- Packages say `"kit": 4`. Uploads need kit v4: run `npm run update`.
+
 ## v3 (October 2026)
 
 - **Typing games.** A game can take typing instead of buttons: `"input": { "text": "enter" }`

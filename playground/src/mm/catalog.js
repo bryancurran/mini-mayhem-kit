@@ -19,6 +19,8 @@ export async function loadCatalog() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (data.uploads) Object.assign(uploads, data.uploads);
+    // What the built-in games play on and for how many players, as the server has them.
+    for (const [id, spec] of Object.entries(data.builtIn ?? {})) if (MINIGAMES[id] && !MINIGAMES[id].mm) Object.assign(MINIGAMES[id], spec);
     for (const info of data.games) {
       if (MINIGAMES[info.id]?.version !== info.version) packages.delete(info.id);
       registerMinigame(info);

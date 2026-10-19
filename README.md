@@ -27,12 +27,14 @@ play with friends in the browser, and upload them to its library so anyone can p
    - `npm run shot <id>` takes screenshots.
 4. **Upload it** with `npm run upload <id> -- --by "Your name"`. This goes straight to Mini
    Mosh's server, which checks it and, if it passes, adds it to the lobby under
-   **User created**. GitHub, git and pull requests aren't involved at any point.
+   **User created**. GitHub, git and pull requests aren't involved at any point. The first time
+   on a computer, sign the kit in to your Mini Mosh account with `npm run login`: it prints a
+   link to approve in your browser (signed in with Google). Your games go in that account.
 5. **Play it:** open https://minimosh.io/, press **Games**, find your game and press
    **Play it**.
 6. **Keep improving it:** change it, then `npm run upload <id>` again to replace the version in
-   the library. The first upload also prints a link: open it once and your game shows under
-   **Games → My games**, where you can update it, rename it or delete it from the browser.
+   the library. Your game is also under **Games → My games** on the site, where you can update
+   it, rename it or delete it from the browser.
 
 Before you start, and whenever the kit says it's out of date, run `npm run update`: it gets the
 latest kit from GitHub (your games are safe), and uploads need the latest version.
@@ -84,7 +86,8 @@ full guide.
 | `npm run play [id]` | Opens the playground: play against bots, with an adjustable network delay (`-- --host` for phones on your wifi) |
 | `npm run check <id>` | Plays it headless with bots, the same check uploads get, and checks the id and name are free |
 | `npm run shot <id>` | Saves screenshots of it being played (`-- --phone`, `-- --at 3,20`). Run `npm run setup-browser` once first: it downloads a headless browser (about 110 MB) into `~/.cache/ms-playwright` |
-| `npm run upload <id>` | Sends it to Mini Mosh's library (`-- --by "Your name"`), or updates it there if you uploaded it before |
+| `npm run login` | Signs the kit in to your Mini Mosh account (once on each computer; `npm run logout` signs it out) |
+| `npm run upload <id>` | Sends it to Mini Mosh's library, in your account (`-- --by "Your name"`), or updates it there if it's one of yours |
 | `npm run delete <id>` | Takes your game out of the library |
 | `npm run get <id>` | Downloads a game from the library into `games/<id>/` |
 | `npm run pack <id>` | Builds `dist/<id>.mm` (you can also upload that from the game's lobby) |
@@ -107,11 +110,10 @@ Uploads are checked in three steps:
 3. **Review:** an automated look for content that isn't fine for all ages, scams and other
    problems.
 
-If it passes, it goes straight into the lobby under **User created**. Uploading it again later
-goes through the same checks and replaces it. The kit keeps a key for each game it uploads in
-`.mm-keys.json` (git ignores it): that key is what lets you update or delete it, so don't share
-it. If you uploaded a game from another computer or the browser, get its key on minimosh.io
-under **Games → My games → your game → Update it from the creator kit**.
+If it passes, it goes straight into the lobby under **User created**, in your account. Uploading
+it again later goes through the same checks and replaces it. Only your account can update or
+delete it, so the kit needs to be signed in to it (`npm run login`, which keeps its sign-in in
+`.mm-login.json`: git ignores it, and don't share it).
 
 ## What's here
 

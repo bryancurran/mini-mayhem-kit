@@ -26,6 +26,12 @@ const screen = (width, height, top, bottom) => ({
 const SCREENS = [screen(1280, 800, 60, 50), screen(390, 844, 140, 180)];
 const quiet = { log() {}, warn() {}, error() {} };
 
+// How many players to play-test a game with: 3 (or as near as it takes), then the fewest.
+export function testCounts(manifest) {
+  const { min, max } = manifest.players ?? { min: 1, max: MM.maxPlayers };
+  return [...new Set([Math.max(min, Math.min(3, max)), min])];
+}
+
 export function playtest(pkg, { runtime, players = 4, games = 2, seed = 12345, maxSeconds = MM.maxGameSeconds, clientMemory = MM.memory.client, log = quiet } = {}) {
   const { QuickJS, ENGINE, KIT, makeGame } = runtime;
   const m = pkg.manifest;

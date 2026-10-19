@@ -2443,6 +2443,22 @@ button.user-game {
   gap: 10px;
 }
 
+/* Why the panel opened (say, to upload a game), and the creator kit's sign-ins. */
+.account-note {
+  margin: 0 30px 10px 0; /* clear of the close button */
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #fff1b8;
+  font-weight: 700;
+}
+
+.kit-logins {
+  margin: 10px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
 .google-button {
   min-height: 44px;
   display: grid;
@@ -3140,32 +3156,8 @@ button.user-game {
   background: #ffd6db;
 }
 
-.kit-key {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: #f4effa;
-}
-
-.kit-key p {
-  margin: 0;
-  font-weight: 600;
-}
-
-.kit-command {
-  display: block;
-  width: 100%;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: var(--ink);
-  color: #fff;
-  font: 600 13px/1.4 ui-monospace, 'SF Mono', Menlo, monospace;
-  overflow-wrap: anywhere;
-  user-select: all;
+.lib-owner code {
+  font: 600 13px ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
 .lib-edit {

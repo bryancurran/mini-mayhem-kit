@@ -44,6 +44,7 @@ to the game's library (see Uploading).
   "intro": "Shown as a banner during the countdown (optional).",
   "tickRate": 30,
   "countdown": 3,
+  "players": { "min": 1, "max": 8 },
   "input": { "buttons": ["a"], "dirs": false, "move": false, "touch": "tap" }
 }
 ```
@@ -51,6 +52,11 @@ to the game's library (see Uploading).
 - `id`: lowercase letters, digits and dashes.
 - `color`: the game's segments on the spin wheel.
 - `tickRate`: rule steps per second, 10-60.
+- `players` (required): the fewest and the most players the game takes, from 1 to 8. The lobby
+  won't start it with fewer or more, and the play test, the playground and the bots stay inside
+  it. Take 1 to 8 if you can: a room holds up to 8, and playing alone is how people practise and
+  try a game. Narrow it only when the game can't work otherwise (a duel: 2 to 2; a team game: 4 to
+  8).
 - `input`: which inputs the game receives. Players never press keys at your game directly:
   the engine maps keyboard, gamepad and touch onto these, the same way for every game.
 
@@ -355,15 +361,23 @@ to fetch anything, store anything or talk to anything outside the game.
 
 ## Uploading
 
-From the kit, `npm run upload my-game -- --by "Your name"`. Or build the file with
-`npm run pack my-game` and upload `dist/my-game.mm` from a lobby: open the **User created**
-tab and press **Upload a game (.mm)**. It's checked in three steps, and you'll see why if it's
-turned down:
+Every game in the library belongs to someone's Mini Mosh account (signed in with Google), and
+only that account can update or delete it. So sign the kit in first, once on each computer:
+`npm run login`. It prints a link: open it, signed in to minimosh.io, check the page shows the
+same code as the kit, and approve it. The kit keeps its sign-in in `.mm-login.json` (git ignores
+it): don't share it, since it lets anyone upload and delete games in your account. `npm run
+logout` signs it out, and so does **Sign it out** under the coin button on the site.
+
+Then `npm run upload my-game -- --by "Your name"` (without `--by`, your account's nickname is
+shown as the maker). Or build the file with `npm run pack my-game` and upload `dist/my-game.mm`
+from a lobby, signed in: open the **User created** tab and press **Upload a game (.mm)**. It's
+checked in three steps, and you'll see why if it's turned down:
 
 1. **File:** at most 200 KB, a valid package, an `id` and `name` no other game uses, and not
    just a renamed copy of the starter game or an example.
-2. **Play test:** the same check as `npm run check` (below), with 3 bots and then solo,
-   up to 5 minutes of game time, and 48 MB of memory per browser.
+2. **Play test:** the same check as `npm run check` (below), with 3 bots (or as near as
+   `players` allows) and then the fewest it takes, up to 5 minutes of game time, and 48 MB of
+   memory per browser.
 3. **Review:** an automated look at everything in the package. It turns down:
    - content that isn't fine for all ages;
    - scams, or asking players for personal details;
@@ -384,28 +398,21 @@ commands say when it's behind, too.
 
 ### Updating a game
 
-Upload it again: `npm run upload my-game`. A package whose `id` is one of your games replaces
-it, after the same three checks. Games already being played finish on the old version, and
-every game after uses the new one. Keep the same `id` (a different id is a different game). A
-new `name` or `tagline` in manifest.json goes with it.
-
-What makes it yours is a key. The server gives the kit one for each game it uploads, and the kit
-keeps it in `.mm-keys.json` (git ignores it). Don't share it: anyone with the key can update or
-delete the game. A game uploaded from a browser belongs to that browser's account instead (sign
-in to keep it on every device).
+Upload it again: `npm run upload my-game`. A package whose `id` is one of your games (in the
+account the kit is signed in to) replaces it, after the same three checks. Games already being
+played finish on the old version, and every game after uses the new one. Keep the same `id` (a
+different id is a different game). A new `name`, `tagline` or `players` in manifest.json goes
+with it.
 
 ### Looking after your games in the browser
 
-After a game's first upload, the kit prints a link. Open it once (signed in, ideally) and the
-game is under **Games → My games** on minimosh.io. From there you can:
+Your games are under **Games → My games** on minimosh.io, signed in to the same account. From
+there you can:
 
 - **Update** it with a new `.mm` file (`npm run pack my-game` makes one);
 - **Edit details**: its name and tagline (checked by the review again) and the name shown as its
   maker;
-- **Delete** it;
-- get a new key for the kit (**Update it from the creator kit**), to update it from a computer
-  that doesn't have the key: `npm run upload my-game -- --key <key>` once, and the kit keeps it.
-  The old key stops working.
+- **Delete** it.
 
 From the kit, `npm run delete my-game` takes it out of the library, and `npm run get my-game`
 downloads a game from the library into `games/my-game/` (to carry on with it on another
@@ -415,8 +422,8 @@ computer).
 
 The check plays the package with a stand-in for the server that follows the same rules, and the
 same browser sandbox, using a simulated clock and network delays: bots with random inputs, a
-spectator from the start, and one who joins halfway (3 players, then solo; `-- --players 4,2`
-for others). It fails if:
+spectator from the start, and one who joins halfway (3 players, then the fewest your `players`
+allows, usually solo; `-- --players 4,2` for others, inside that range). It fails if:
 
 - the game crashes, never ends, or `results()` doesn't place everyone;
 - any browser's state disagrees with the server's, or replaying the inputs from scratch gives
@@ -434,7 +441,7 @@ It also prints how long ticks and frames take. `npm run shot my-game` saves scre
 game being played, so you can see what players will see. Its options:
 - `-- --phone` for a phone screen;
 - `-- --at 3,15,40` for the moments (seconds of game time; negative for the countdown);
-- `-- --bots N`, where 0 means solo;
+- `-- --bots N`, where 0 means solo (kept inside `players`);
 - `-- --seed N` for the same `game.random()` every time;
 - `-- --out dir` to save elsewhere.
 

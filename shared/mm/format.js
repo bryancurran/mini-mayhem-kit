@@ -1,6 +1,6 @@
 // The .mm package format: a minigame as data plus sandboxed code. A package is one JSON file:
 //
-//   { "mm": 1, "kit": 3, "manifest": { ... }, "files": { "rules.js": "...", "view.js": "..." } }
+//   { "mm": 1, "kit": 4, "manifest": { ... }, "files": { "rules.js": "...", "view.js": "..." } }
 //
 // "kit" is the version of the creator kit that packed it (MM.kitVersion): uploads packed with an
 // older kit than the server's are turned down, so everyone uploads with the latest rules and tools.
@@ -11,13 +11,14 @@
 
 export const MM = {
   version: 1,
-  kitVersion: 3, // bump whenever the kit changes in a way uploads should wait for (see the kit's CHANGELOG.md)
+  kitVersion: 4, // bump whenever the kit changes in a way uploads should wait for (see the kit's CHANGELOG.md)
   netDelay: 300, // ms the server waits before a tick is final (later inputs move to the next tick)
   futureSlack: 300, // ms ahead of the server's clock an input may be stamped
   sendRate: 10, // snapshots per second (inputs are also passed on the moment they arrive)
   hashEvery: 2, // seconds between checks that every client agrees with the server
   maxInputsPerSecond: 60, // presses and releases both count
   maxTextLength: 100, // characters in a typing game's text box
+  maxPlayers: 8, // in a room (MAX_PLAYERS in shared/constants.js)
   maxFileBytes: 256 * 1024,
   maxPackageBytes: 1024 * 1024,
   maxUploadBytes: 200 * 1024, // packages players upload are held to less
@@ -66,6 +67,14 @@ export function checkManifest(raw) {
   if (!Number.isInteger(tickRate) || tickRate < 10 || tickRate > 60) errors.push('tickRate: a whole number from 10 to 60');
   const countdown = m.countdown ?? 3;
   if (!Number.isInteger(countdown) || countdown < 0 || countdown > 5) errors.push('countdown: 0-5 seconds');
+  // The fewest and most players it takes. Games uploaded since kit v4 all say; older ones take 1-8.
+  const players = m.players;
+  if (players !== undefined) {
+    const ok = (n) => Number.isInteger(n) && n >= 1 && n <= MM.maxPlayers;
+    if (!players || typeof players !== 'object' || !ok(players.min) || !ok(players.max) || players.min > players.max) {
+      errors.push(`players: { "min": fewest, "max": most }, whole numbers from 1 to ${MM.maxPlayers}, min no more than max`);
+    }
+  }
 
   const input = { buttons: typing ? [] : ['a'], dirs: false, move: false, touch: typing ? 'none' : 'tap', text: false, maxLength: MM.maxTextLength, ...(m.input ?? {}) };
   if (!Array.isArray(input.buttons) || !input.buttons.every((b) => b === 'a' || b === 'b') || new Set(input.buttons).size !== input.buttons.length) {
@@ -94,6 +103,7 @@ export function checkManifest(raw) {
     ...(m.intro ? { intro: m.intro } : {}),
     tickRate,
     countdown,
+    ...(players !== undefined ? { players: { min: players?.min, max: players?.max } } : {}),
     input: {
       buttons: input.buttons,
       dirs: input.dirs,
