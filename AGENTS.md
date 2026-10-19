@@ -91,7 +91,7 @@ netcode, spectators, the results screen and coins. You write the rules and the l
 8. **Upload only when your user asks:** `npm run upload <id> -- --by "Their name"` (not git).
    This is the only way a game gets into Mini Mosh. It's checked
    again and reviewed, and every reason for a rejection is printed: fix them and upload again.
-   Each player can upload 6 times an hour.
+   Each player can upload 6 times an hour, and have up to 100 games in the library.
    - **Sign the kit in first, once on each computer: `npm run login`.** Every game belongs to
      someone's Mini Mosh account, and uploads go in the one the kit is signed in to. It prints a
      link and a code: give both to your user, who opens the link signed in to minimosh.io with

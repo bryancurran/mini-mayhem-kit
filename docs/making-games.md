@@ -387,6 +387,9 @@ checked in three steps, and you'll see why if it's turned down:
 
    It doesn't judge how good the game is.
 
+Each account can have up to 100 games in the library (updates don't count): delete one to
+make room for another.
+
 Accepted games are playable right away. Everyone in a lobby sees them under User created, and
 the host can pick them like any other game. They don't appear on the spin wheel. Anyone can also
 find them from the home screen: **Games** lists every game with its rules, and **Play it** makes
