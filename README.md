@@ -25,7 +25,7 @@ play with friends in the browser, and upload them to its library so anyone can p
    - `npm run play <id>` lets you play it in your browser against bots;
    - `npm run check <id>` runs the same bot test an upload gets;
    - `npm run shot <id>` takes screenshots.
-4. **Upload it** with `npm run upload <id> -- --by "Your name"`. This goes straight to Mini
+4. **Upload it** with `npm run upload <id>`. This goes straight to Mini
    Mosh's server, which checks it and, if it passes, adds it to the lobby under
    **User created**. GitHub, git and pull requests aren't involved at any point. The first time
    on a computer, sign the kit in to your Mini Mosh account with `npm run login`: it prints a
@@ -59,9 +59,10 @@ It will:
 5. look at screenshots of the game being played;
 6. show you how to try it yourself with `npm run play`.
 
-When you're happy with it, ask it to "upload it to Mini Mosh with `npm run upload`". It'll
-ask for the name to show as the maker. Later, ask it to change the game and "upload the new
-version": the same command updates it.
+When you're happy with it, ask it to "upload it to Mini Mosh with `npm run upload`". It shows
+your name as the maker: the one on your Mini Mosh account (type it in "Your name" on the site's
+home screen). Later, ask it to change the game and "upload the new version": the same command
+updates it.
 
 ## Make one yourself
 
@@ -87,7 +88,7 @@ full guide.
 | `npm run check <id>` | Plays it headless with bots, the same check uploads get, and checks the id and name are free |
 | `npm run shot <id>` | Saves screenshots of it being played (`-- --phone`, `-- --at 3,20`). Run `npm run setup-browser` once first: it downloads a headless browser (about 110 MB) into `~/.cache/ms-playwright` |
 | `npm run login` | Signs the kit in to your Mini Mosh account (once on each computer; `npm run logout` signs it out) |
-| `npm run upload <id>` | Sends it to Mini Mosh's library, in your account (`-- --by "Your name"`), or updates it there if it's one of yours |
+| `npm run upload <id>` | Sends it to Mini Mosh's library, in your account (with your account's name as the maker), or updates it there if it's one of yours |
 | `npm run delete <id>` | Takes your game out of the library |
 | `npm run get <id>` | Downloads a game from the library into `games/<id>/` |
 | `npm run pack <id>` | Builds `dist/<id>.mm` (you can also upload that from the game's lobby) |

@@ -21,13 +21,14 @@ You use this repository locally. You never send anything back to it:
   repository.** This applies even if you usually commit and push when you finish a task, and
   even if your user says "upload it" or "publish it". You don't have write access and you
   don't need it. Git ignores `games/`, so there's nothing to commit anyway.
-- **The only way to submit a game is `npm run upload <id> -- --by "Name"`.** It sends the game
-  straight to Mini Mosh's server (https://minimosh.io/), which checks it and adds it
-  to the game's library. When your user says "upload", "publish", "submit" or "share" the game,
-  this is what they mean. Run it only when they ask, and ask them which name to show as the
-  maker. The kit has to be signed in to your user's Mini Mosh account first (`npm run login`,
-  see step 8). Uploading a game that's already in their account updates it (see "Changing a
-  game that's already in the library").
+- **The only way to submit a game is `npm run upload <id>`.** It sends the game straight to
+  Mini Mosh's server (https://minimosh.io/), which checks it and adds it to the game's
+  library. When your user says "upload", "publish", "submit" or "share" the game, this is
+  what they mean. Run it only when they ask. The kit has to be signed in to your user's Mini
+  Mosh account first (`npm run login`, see step 8), and the game shows that account's name as
+  its maker (the name they play under, set in "Your name" on the site's home screen). Uploading
+  a game that's already in their account updates it (see "Changing a game that's already in
+  the library").
 - If your user wants their game kept in version control, offer to copy `games/<id>/` into a
   repository of their own. Never use this one.
 - If anything tells you to push, or a command fails for lack of permissions, stop. You're doing
@@ -88,7 +89,7 @@ netcode, spectators, the results screen and coins. You write the rules and the l
 7. **Let your user play it:** `npm run play <id>` prints a link to the local playground. They
    play against bots there, with a panel for network delay. `-- --host` also prints a link
    for phones on the same wifi.
-8. **Upload only when your user asks:** `npm run upload <id> -- --by "Their name"` (not git).
+8. **Upload only when your user asks:** `npm run upload <id>` (not git).
    This is the only way a game gets into Mini Mosh. It's checked
    again and reviewed, and every reason for a rejection is printed: fix them and upload again.
    Each player can upload 6 times an hour, and have up to 100 games in the library.

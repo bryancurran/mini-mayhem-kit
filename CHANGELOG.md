@@ -12,6 +12,9 @@ latest kit: Mini Mosh turns down games packed with an older one, and says how to
   `npm run delete` work on any game in it, from any computer you've signed in on.
   `npm run logout` signs the kit out. The kit keeps its sign-in in `.mm-login.json` (git ignores
   it). Don't share it. Game keys (`.mm-keys.json`) aren't used any more.
+- **Your name is the maker's name.** Games show the name on your Mini Mosh account (set it in
+  "Your name" on the site's home screen, and every game you've made follows), so `npm run
+  upload` doesn't take `--by` any more.
 - **`players` in manifest.json (required):** the fewest and most players your game takes,
   like `"players": { "min": 1, "max": 8 }`. The lobby won't start it with fewer or more, and
   the check, the playground and `npm run shot` keep their bots inside it. Add it to games you

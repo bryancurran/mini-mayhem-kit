@@ -282,6 +282,13 @@ input {
   color: var(--ink-soft);
 }
 
+/* "Saved ✓" by the name box, a second after typing stops. */
+.name-saved {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--green);
+}
+
 input {
   border: 3px solid var(--line);
   border-radius: 12px;
@@ -3040,14 +3047,6 @@ button.user-game {
   color: var(--ink-soft);
 }
 
-.lib-name {
-  display: flex;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.lib-name label,
 .lib-edit label {
   display: flex;
   flex-direction: column;
@@ -3057,7 +3056,6 @@ button.user-game {
   color: var(--ink-soft);
 }
 
-.lib-name input,
 .lib-edit input {
   font-size: 17px;
   padding: 7px 12px;

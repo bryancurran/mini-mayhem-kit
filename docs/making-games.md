@@ -368,8 +368,9 @@ same code as the kit, and approve it. The kit keeps its sign-in in `.mm-login.js
 it): don't share it, since it lets anyone upload and delete games in your account. `npm run
 logout` signs it out, and so does **Sign it out** under the coin button on the site.
 
-Then `npm run upload my-game -- --by "Your name"` (without `--by`, your account's nickname is
-shown as the maker). Or build the file with `npm run pack my-game` and upload `dist/my-game.mm`
+Then `npm run upload my-game`. Your games show your account's name as their maker: the name you
+play under, which you set in **Your name** on the site's home screen (change it there and every
+game you've made shows the new one). Or build the file with `npm run pack my-game` and upload `dist/my-game.mm`
 from a lobby, signed in: open the **User created** tab and press **Upload a game (.mm)**. It's
 checked in three steps, and you'll see why if it's turned down:
 
@@ -413,8 +414,7 @@ Your games are under **Games → My games** on minimosh.io, signed in to the sam
 there you can:
 
 - **Update** it with a new `.mm` file (`npm run pack my-game` makes one);
-- **Edit details**: its name and tagline (checked by the review again) and the name shown as its
-  maker;
+- **Edit details**: its name and tagline (checked by the review again);
 - **Delete** it.
 
 From the kit, `npm run delete my-game` takes it out of the library, and `npm run get my-game`

@@ -11,8 +11,8 @@
 //   npm run login                            sign the kit in to your Mini Mosh account (once on
 //                                            each computer): uploads go in that account
 //   npm run logout                           sign it out again
-//   npm run upload <id> [-- --by "Your name"]   send it to Mini Mosh's library, or update it
-//                                            there if it's one of your games
+//   npm run upload <id>                      send it to Mini Mosh's library, or update it there
+//                                            if it's one of your games
 //   npm run delete <id>                      take your game out of Mini Mosh's library
 //   npm run get <id>                         download a game from the library into games/<id>
 //   (check, login, upload, delete and get also take -- --server <url> to use another server)
@@ -404,7 +404,8 @@ async function upload() {
   if (pkg.kit < MM.kitVersion) throw new Error(`${path.basename(args[0])} was packed with an older kit (v${pkg.kit}). Upload the game's folder instead, or pack it again with npm run pack.`);
   await needLogin();
   const target = new URL('mm/upload', server());
-  if (typeof flags.by === 'string') target.searchParams.set('by', flags.by.slice(0, 16));
+  // Games show their maker's account name (the name they play under on the site).
+  if (flags.by !== undefined) console.log('(--by isn’t used any more: your games show the name on your Mini Mosh account, which you set in "Your name" on the site’s home screen.)');
   const account = logins.get();
   console.log(`Uploading ${name} (${id}) to ${target.origin}${target.pathname.replace(/mm\/upload$/, '')}, into ${who(account)}'s games…`);
   const headers = { 'Content-Type': 'application/octet-stream', 'X-MM-Kit': String(MM.kitVersion), ...loginHeaders() };

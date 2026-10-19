@@ -20,7 +20,7 @@ description: Make, change, test and upload Mini Mosh party minigames (.mm packag
 5. Look at it: `npm run shot <id>` (and `npm run shot <id> -- --phone`), then open the PNGs it
    prints. Run `npm run setup-browser` once if it asks for a browser.
 6. Ask the user to play it with `npm run play <id>`.
-7. Only upload when the user asks: `npm run upload <id> -- --by "Their name"`. That sends the
+7. Only upload when the user asks: `npm run upload <id>`. That sends the
    game to Mini Mosh's server, into the account the kit is signed in to, or updates it there if
    it's one of that account's games. The first time on a computer, sign the kit in with
    `npm run login`: give the user the link and code it prints, to approve in their browser
