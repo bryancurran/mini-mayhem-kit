@@ -36,10 +36,41 @@ body {
   overscroll-behavior: none;
 }
 
+/* No double-tap zoom anywhere (tapping fast is half the game); pinching still zooms outside a round. */
+html {
+  touch-action: manipulation;
+}
+
 button,
 input {
   font: inherit;
   color: inherit;
+}
+
+/* Buttons are for pressing: pressing one fast or long never selects its label or pops up the
+   copy / look up menu. */
+button,
+[role='button'] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* While a round is on (main.js), nothing on the page can be selected or long-pressed into a menu,
+   whatever drew it (the HUD, name tags over the critters, a player-made game's buttons). Text
+   boxes still work: a typing game's, and the notes on the results. */
+body.playing,
+body.playing * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+body.playing input,
+body.playing textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }
 
 #stage canvas {

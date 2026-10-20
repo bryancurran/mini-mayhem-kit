@@ -299,6 +299,8 @@
       info.time = a.now / 1000;
       info.dt = a.dt;
       info.tick = E.pred.tick;
+      // How far the present is into the next tick (0 up to 1): the state is as of the tick's start.
+      info.alpha = Math.max(0, Math.min(1, (a.now * E.rate) / 1000 - E.pred.tick));
       info.screen = a.screen;
       info.events = events;
       info.confirmed = E.quiet ? [] : confirmed.map((c) => JSON.parse(c[2]));

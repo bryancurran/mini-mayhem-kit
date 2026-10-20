@@ -1,6 +1,6 @@
 // The .mm package format: a minigame as data plus sandboxed code. A package is one JSON file:
 //
-//   { "mm": 1, "kit": 4, "manifest": { ... }, "files": { "rules.js": "...", "view.js": "..." } }
+//   { "mm": 1, "kit": 5, "manifest": { ... }, "files": { "rules.js": "...", "view.js": "..." } }
 //
 // "kit" is the version of the creator kit that packed it (MM.kitVersion): uploads packed with an
 // older kit than the server's are turned down, so everyone uploads with the latest rules and tools.
@@ -11,7 +11,7 @@
 
 export const MM = {
   version: 1,
-  kitVersion: 4, // bump whenever the kit changes in a way uploads should wait for (see the kit's CHANGELOG.md)
+  kitVersion: 5, // bump whenever the kit changes in a way uploads should wait for (see the kit's CHANGELOG.md)
   netDelay: 300, // ms the server waits before a tick is final (later inputs move to the next tick)
   futureSlack: 300, // ms ahead of the server's clock an input may be stamped
   sendRate: 10, // snapshots per second (inputs are also passed on the moment they arrive)

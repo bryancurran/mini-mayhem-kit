@@ -50,6 +50,8 @@ class ScriptedView {
     this.hud = new Hud(ctx.hudRoot, { players: this.players, hint });
     if (!this.isPlaying) this.hud.banner('Spectating · you’ll play next round', { style: 'info' });
     this.host = new SceneHost(this.scene, this.camera, { hud: this.hud, onBadCommand: (msg) => console.warn(`[${id}] ${msg}`) });
+    // Things glide between where the view puts them over one tick of the rules (see SceneHost).
+    this.host.glideMs = Math.min(100, 1000 / this.rate);
 
     this.inbox = { log: [], fin: this.init.fin ?? 0, hash: null, reset: null };
     this.nextInput = 0;

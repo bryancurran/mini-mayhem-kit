@@ -35,9 +35,10 @@ export class Input {
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
-    // Holding a button down on a phone is a long press, which opens the context menu.
+    // Holding a button down on a phone is a long press, which opens the context menu (not in a
+    // text box, such as a typing game's: that menu is how you paste).
     window.addEventListener('contextmenu', (e) => {
-      if (e.target instanceof Element && e.target.closest(GAME_CONTROLS)) e.preventDefault();
+      if (e.target instanceof Element && e.target.closest(GAME_CONTROLS) && !e.target.closest('input, textarea')) e.preventDefault();
     });
   }
 

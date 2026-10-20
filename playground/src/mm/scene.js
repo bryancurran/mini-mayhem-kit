@@ -9,6 +9,12 @@ import { sfx } from '../sfx.js';
 // shared/mm/prelude-view.js) with three.js. Everything coming out of the sandbox is untrusted:
 // every command is checked, numbers are clamped, colors must be hex, text is only ever text,
 // and there are caps on how much a game can create.
+//
+// Games draw from their state, which only moves on at each tick of their rules (30 times a
+// second, say), so things drawn straight from it would move in steps on a 60 or 120 Hz screen.
+// So nodes and the camera glide to where the view puts them, over one tick (see Glide): a game
+// gets smooth motion without doing anything, one tick behind. smooth: false turns that off for a
+// node, and snap: true makes one move a jump (a teleport, a respawn).
 
 const LIMITS = {
   nodes: 6000,
@@ -23,6 +29,9 @@ const LIMITS = {
   soundsPerFrame: 8,
   burstCount: 120,
   segments: 128,
+  instances: 20_000, // copies across every mm.instances
+  instancesEach: 4096,
+  instanceVertices: 3_000_000, // copies times the vertices of their shape, across them all
 };
 const COLOR = /^#[0-9a-f]{3,8}$/i;
 const AVATAR_MODES = new Set(['idle', 'happy', 'run', 'jump', 'fall', 'stuck', 'swim', 'balance', 'sleep', 'cheer']);
@@ -76,6 +85,178 @@ function shapeGeometry(s) {
   }
 }
 
+// Where something is drawn, gliding to where the view last put it. A new target restarts the glide
+// from wherever it is now, so a target that moves on once a tick is followed at an even speed.
+class Glide {
+  constructor(obj) {
+    this.obj = obj; // anything with position, quaternion and scale
+    this.fromPos = new THREE.Vector3();
+    this.fromQuat = new THREE.Quaternion();
+    this.fromScale = new THREE.Vector3();
+    this.toPos = obj.position.clone();
+    this.toQuat = obj.quaternion.clone();
+    this.toScale = obj.scale.clone();
+    this.t0 = 0;
+  }
+
+  // Jumps to the target.
+  snap() {
+    this.obj.position.copy(this.toPos);
+    this.obj.quaternion.copy(this.toQuat);
+    this.obj.scale.copy(this.toScale);
+  }
+
+  // A new target (any of pos, quat, scale): returns whether it moved. The glide so far is caught up
+  // to now first, so the new one starts from where it is this frame (not the last one: that would
+  // leave it standing still for a frame each tick).
+  aim(pos, quat, scale, now, ms) {
+    const moved = (pos && pos.distanceToSquared(this.toPos) > 1e-10) || (quat && 1 - Math.abs(quat.dot(this.toQuat)) > 1e-10) || (scale && scale.distanceToSquared(this.toScale) > 1e-10);
+    if (!moved) return false;
+    this.step(now, ms);
+    this.fromPos.copy(this.obj.position);
+    this.fromQuat.copy(this.obj.quaternion);
+    this.fromScale.copy(this.obj.scale);
+    if (pos) this.toPos.copy(pos);
+    if (quat) this.toQuat.copy(quat);
+    if (scale) this.toScale.copy(scale);
+    this.t0 = now;
+    return true;
+  }
+
+  // Moves along; returns false once it's there.
+  step(now, ms) {
+    const k = ms > 0 ? Math.min(1, (now - this.t0) / ms) : 1;
+    this.obj.position.lerpVectors(this.fromPos, this.toPos, k);
+    this.obj.quaternion.slerpQuaternions(this.fromQuat, this.toQuat, k);
+    this.obj.scale.lerpVectors(this.fromScale, this.toScale, k);
+    return k < 1;
+  }
+}
+
+// mm.instances: many copies of one shape in one draw call (two with the outline). The cartoon
+// outline pass can't draw instanced meshes, so the outline is a slightly bigger, inside-out copy
+// in the outline color, as in crowd.js. Copies glide like nodes (one Glide's worth of numbers each).
+const OUTLINE = '#1c122e';
+const OUTLINE_WIDTH = 0.022; // world units, at scale 1
+const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
+
+class InstanceSet {
+  constructor(geometry, material, count, { outline, shadow }) {
+    this.count = count;
+    this.mesh = new THREE.InstancedMesh(geometry, material, count);
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.frustumCulled = false; // its bounds would be where the copies started
+    this.mesh.castShadow = shadow === true || shadow === 'cast';
+    this.mesh.receiveShadow = shadow === true || shadow === 'receive';
+    if (outline) {
+      geometry.computeBoundingSphere();
+      this.grow = 1 + OUTLINE_WIDTH / Math.max(0.01, geometry.boundingSphere.radius);
+      this.shell = new THREE.InstancedMesh(geometry, noOutline(new THREE.MeshBasicMaterial({ color: OUTLINE, side: THREE.BackSide })), count);
+      this.shell.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      this.shell.frustumCulled = false;
+      this.mesh.add(this.shell);
+    }
+    // Shown and target transforms, and where each glide started: 10 numbers a copy.
+    this.cur = new Float32Array(count * 10);
+    this.to = new Float32Array(count * 10);
+    this.from = new Float32Array(count * 10);
+    this.t0 = new Float64Array(count);
+    this.shown = new Uint8Array(count); // placed and visible
+    this.moving = new Set();
+    for (let i = 0; i < count; i++) {
+      for (const a of [this.cur, this.to]) a.set([0, 0, 0, 0, 0, 0, 1, 1, 1, 1], i * 10);
+      this.mesh.setMatrixAt(i, HIDDEN);
+      this.shell?.setMatrixAt(i, HIDDEN);
+    }
+  }
+
+  // Copy i's shown transform at time now (glide k), into cur.
+  advance(i, now, ms) {
+    const o = i * 10;
+    const k = ms > 0 ? Math.min(1, (now - this.t0[i]) / ms) : 1;
+    for (let j = 0; j < 3; j++) this.cur[o + j] = this.from[o + j] + (this.to[o + j] - this.from[o + j]) * k;
+    for (let j = 7; j < 10; j++) this.cur[o + j] = this.from[o + j] + (this.to[o + j] - this.from[o + j]) * k;
+    tmpQuatA.fromArray(this.from, o + 3).slerp(tmpQuatB.fromArray(this.to, o + 3), k).toArray(this.cur, o + 3);
+    return k < 1;
+  }
+
+  write(i) {
+    const o = i * 10;
+    if (!this.shown[i]) {
+      this.mesh.setMatrixAt(i, HIDDEN);
+      this.shell?.setMatrixAt(i, HIDDEN);
+    } else {
+      tmpMatrix.compose(tmpPos.fromArray(this.cur, o), tmpQuat.fromArray(this.cur, o + 3), tmpScale.fromArray(this.cur, o + 7));
+      this.mesh.setMatrixAt(i, tmpMatrix);
+      if (this.shell) {
+        tmpScale.multiplyScalar(this.grow);
+        tmpMatrix.compose(tmpPos, tmpQuat, tmpScale);
+        this.shell.setMatrixAt(i, tmpMatrix);
+      }
+    }
+    this.dirty = true;
+  }
+
+  // p: { pos, rot, scale, color, visible }, checked. glide: ms to glide over (0 to jump).
+  place(i, p, now, glide) {
+    const o = i * 10;
+    const first = !this.placed?.has(i);
+    (this.placed ??= new Set()).add(i);
+    const reappears = p.visible !== false && !this.shown[i];
+    if (p.visible !== undefined || first) this.shown[i] = p.visible === false ? 0 : 1;
+    let moved = false;
+    if (p.pos) {
+      moved ||= p.pos.some((v, j) => v !== this.to[o + j]);
+      this.to.set(p.pos, o);
+    }
+    if (p.rot) {
+      tmpQuat.setFromEuler(tmpEuler.fromArray(p.rot)).toArray(this.to, o + 3);
+      moved = true;
+    }
+    if (p.scale) {
+      moved ||= p.scale.some((v, j) => v !== this.to[o + 7 + j]);
+      this.to.set(p.scale, o + 7);
+    }
+    if (p.color) {
+      const first = !this.mesh.instanceColor;
+      this.mesh.setColorAt(i, tmpColor.set(p.color));
+      this.mesh.instanceColor.needsUpdate = true;
+      if (first) this.mesh.material.needsUpdate = true; // its shader starts using copies' colors
+    }
+    if (first || reappears || !glide || p.snap) {
+      this.cur.set(this.to.subarray(o, o + 10), o);
+      this.moving.delete(i);
+    } else if (moved) {
+      this.advance(i, now, glide); // from where it is this frame (see Glide.aim)
+      this.from.set(this.cur.subarray(o, o + 10), o);
+      this.t0[i] = now;
+      this.moving.add(i);
+    }
+    this.write(i);
+  }
+
+  step(now, ms) {
+    for (const i of this.moving) {
+      if (!this.advance(i, now, ms)) this.moving.delete(i);
+      this.write(i);
+    }
+    if (this.dirty) {
+      this.mesh.instanceMatrix.needsUpdate = true;
+      if (this.shell) this.shell.instanceMatrix.needsUpdate = true;
+      this.dirty = false;
+    }
+  }
+}
+
+const tmpPos = new THREE.Vector3();
+const tmpQuat = new THREE.Quaternion();
+const tmpScale = new THREE.Vector3();
+const tmpEuler = new THREE.Euler();
+const tmpQuatA = new THREE.Quaternion();
+const tmpQuatB = new THREE.Quaternion();
+const tmpMatrix = new THREE.Matrix4();
+const tmpColor = new THREE.Color();
+
 function numbers(list, max, name) {
   if (!Array.isArray(list) || list.length > max) throw new BadCommand(`${name}: an array of at most ${max} numbers`);
   const out = new Float32Array(list.length);
@@ -100,12 +281,18 @@ export class SceneHost {
     this.vertices = 0;
     this.textures = 0;
     this.labels = 0;
+    this.instances = 0; // copies across every instances node
+    this.instanceVertices = 0;
+    this.instanceSets = new Set();
     this.worldDone = new Set();
     this.particles = null;
     this.clouds = null;
     this.badCount = 0;
     this.safe = null; // the part of the screen the HUD doesn't cover (set by the host each frame)
     this.safeCamera = false;
+    this.glideMs = 0; // one tick of the game's rules (set by the host), 0 for no gliding
+    this.gliding = new Set(); // Glides on the move
+    this.cameraGlide = null; // { glide, look: Vector3 (shown), lookTo, lookFrom, smooth }
   }
 
   // ---- applying commands ------------------------------------------------------------------
@@ -121,6 +308,8 @@ export class SceneHost {
         if (op === 'new') this.create(a, b, d ?? {});
         else if (op === 'set') this.update(this.node(a), b ?? {});
         else if (op === 'del') this.remove(a);
+        else if (op === 'inst') this.place(this.node(a), b);
+        else if (op === 'ibulk') this.placeMany(this.node(a), b ?? {});
         else if (op === 'mat') this.addResource(a, 'material', this.makeMaterial(b ?? {}));
         else if (op === 'rset') this.updateMaterial(a, b ?? {});
         else if (op === 'tex') this.addResource(a, 'texture', this.makeTexture(b, d, e, f));
@@ -196,6 +385,8 @@ export class SceneHost {
       const el = document.createElement('div');
       n.obj = new CSS2DObject(el);
       n.label = el;
+    } else if (kind === 'instances') {
+      this.makeInstances(n, props);
     } else {
       throw new BadCommand(`unknown node kind "${String(kind).slice(0, 20)}"`);
     }
@@ -207,11 +398,29 @@ export class SceneHost {
 
   update(n, p, fresh = false) {
     const o = n.obj;
-    if (p.pos !== undefined) o.position.fromArray(vec3(p.pos, [0, 0, 0]));
-    if (p.rot !== undefined) o.rotation.fromArray(vec3(p.rot, [0, 0, 0]));
+    if (p.smooth !== undefined) n.smooth = p.smooth !== false;
+    const pos = p.pos !== undefined ? tmpPos.fromArray(vec3(p.pos, [0, 0, 0])) : null;
+    const quat = p.rot !== undefined ? tmpQuat.setFromEuler(tmpEuler.fromArray(vec3(p.rot, [0, 0, 0]))) : null;
+    let scale = null;
     if (p.scale !== undefined) {
-      if (typeof p.scale === 'number') o.scale.setScalar(num(p.scale, 0.0001, 1e4, 1));
-      else o.scale.fromArray(vec3(p.scale, [1, 1, 1]).map((v) => (Math.abs(v) < 0.0001 ? 0.0001 : v)));
+      if (typeof p.scale === 'number') scale = tmpScale.setScalar(num(p.scale, 0.0001, 1e4, 1));
+      else scale = tmpScale.fromArray(vec3(p.scale, [1, 1, 1]).map((v) => (Math.abs(v) < 0.0001 ? 0.0001 : v)));
+    }
+    // A jump rather than a glide: new, told to, never smoothed, just shown again, or moved to
+    // another parent (where its numbers mean somewhere else).
+    const reappears = p.visible !== undefined && p.visible !== false && !o.visible;
+    const jump = fresh || p.snap === true || n.smooth === false || reappears || p.parent !== undefined || !this.glideMs;
+    n.glide ??= new Glide(o);
+    if (jump) {
+      if (pos) n.glide.toPos.copy(pos);
+      if (quat) n.glide.toQuat.copy(quat);
+      if (scale) n.glide.toScale.copy(scale);
+      if (pos || quat || scale || p.snap === true || reappears) {
+        n.glide.snap();
+        this.gliding.delete(n.glide);
+      }
+    } else if (n.glide.aim(pos, quat, scale, performance.now(), this.glideMs)) {
+      this.gliding.add(n.glide);
     }
     if (p.visible !== undefined) o.visible = p.visible !== false;
     if (p.parent !== undefined) this.reparent(n, p.parent);
@@ -258,6 +467,104 @@ export class SceneHost {
     }
   }
 
+  // mm.instances({ shape | geometry, color | material, count, shadow, outline }).
+  makeInstances(n, p) {
+    const count = Math.round(num(p.count, 1, LIMITS.instancesEach, 1));
+    if (this.instances + count > LIMITS.instances) throw new BadCommand(`too many instances (at most ${LIMITS.instances} in all)`);
+    let geometry;
+    let ownGeometry = null;
+    if (p.geometry !== undefined) {
+      if (Number.isInteger(p.geometry)) geometry = this.resource(p.geometry, 'geometry');
+      else geometry = ownGeometry = this.makeGeometry(p.geometry);
+    } else geometry = this.shape(p.shape ?? ['box', 1, 1, 1]);
+    const vertices = geometry.attributes.position.count * count;
+    if (this.instanceVertices + vertices > LIMITS.instanceVertices) {
+      ownGeometry?.dispose();
+      throw new BadCommand(`too many vertices across instances (at most ${LIMITS.instanceVertices})`);
+    }
+    // Its own material: the outline pass has to leave it alone, which a shared one can't.
+    const material = noOutline(p.material !== undefined && !Array.isArray(p.material) ? this.materialRef(p.material).clone() : toon(color(p.color)));
+    n.instances = new InstanceSet(geometry, material, count, { outline: p.outline !== false, shadow: p.shadow });
+    n.obj = n.instances.mesh;
+    n.ownGeometry = ownGeometry;
+    n.count = count;
+    n.vertices = vertices;
+    this.instances += count;
+    this.instanceVertices += vertices;
+    this.instanceSets.add(n.instances);
+  }
+
+  // ['inst', id, [[i, { pos, rot, scale, color, visible }], ...]]
+  place(n, list) {
+    if (n.kind !== 'instances') throw new BadCommand('only instances can be placed');
+    if (!Array.isArray(list) || list.length > n.count) throw new BadCommand('instances: a list of [index, properties]');
+    const now = performance.now();
+    const glide = n.smooth === false ? 0 : this.glideMs;
+    for (const entry of list) {
+      if (!Array.isArray(entry)) continue;
+      const [i, p] = entry;
+      if (!Number.isInteger(i) || i < 0 || i >= n.count || !p || typeof p !== 'object') continue;
+      let scale;
+      if (p.scale !== undefined) {
+        const s = typeof p.scale === 'number' ? [p.scale, p.scale, p.scale] : vec3(p.scale, [1, 1, 1]);
+        scale = s.map((v) => num(v, 0.0001, 1e4, 1));
+      }
+      n.instances.place(
+        i,
+        {
+          pos: p.pos !== undefined ? vec3(p.pos, [0, 0, 0]) : undefined,
+          rot: p.rot !== undefined ? vec3(p.rot, [0, 0, 0]) : undefined,
+          scale,
+          color: p.color !== undefined ? color(p.color) : undefined,
+          visible: p.visible === undefined ? undefined : p.visible !== false,
+          snap: p.snap === true,
+        },
+        now,
+        glide,
+      );
+    }
+  }
+
+  // ['ibulk', id, { from, pos: [x, y, z, ...], rot: [x, y, z, ...], scale: [s, ...], color: ['#hex', ...],
+  // shown, snap }]: many copies at once.
+  placeMany(n, d) {
+    if (n.kind !== 'instances') throw new BadCommand('only instances can be placed');
+    const from = Number.isInteger(d.from) ? Math.max(0, d.from) : 0;
+    const list = (key, per) => {
+      const v = d[key];
+      if (v === undefined) return null;
+      if (!Array.isArray(v) || v.length % per || from + v.length / per > n.count) throw new BadCommand(`instances ${key}: ${per} number${per > 1 ? 's' : ''} for each copy, within count`);
+      return v;
+    };
+    const pos = list('pos', 3);
+    const rot = list('rot', 3);
+    const scale = list('scale', 1);
+    const colors = d.color === undefined ? null : Array.isArray(d.color) && from + d.color.length <= n.count ? d.color : null;
+    const copies = Math.max(pos ? pos.length / 3 : 0, rot ? rot.length / 3 : 0, scale ? scale.length : 0, colors ? colors.length : 0);
+    const now = performance.now();
+    const glide = n.smooth === false ? 0 : this.glideMs;
+    const n3 = (a, k) => [num(a[k], -BIG, BIG, 0), num(a[k + 1], -BIG, BIG, 0), num(a[k + 2], -BIG, BIG, 0)];
+    for (let j = 0; j < copies; j++) {
+      const p = { snap: d.snap === true };
+      if (pos && j * 3 < pos.length) p.pos = n3(pos, j * 3);
+      if (rot && j * 3 < rot.length) p.rot = n3(rot, j * 3);
+      if (scale && j < scale.length) {
+        const s = num(scale[j], 0.0001, 1e4, 1);
+        p.scale = [s, s, s];
+      }
+      if (colors && j < colors.length && colors[j] !== null) p.color = color(colors[j]);
+      n.instances.place(from + j, p, now, glide);
+    }
+    // shown: the first `shown` copies show, the rest hide.
+    if (Number.isInteger(d.shown)) {
+      const shown = Math.max(0, Math.min(n.count, d.shown));
+      for (let i = 0; i < n.count; i++) {
+        const want = i < shown;
+        if (n.instances.placed?.has(i) && Boolean(n.instances.shown[i]) !== want) n.instances.place(i, { visible: want }, now, glide);
+      }
+    }
+  }
+
   reparent(n, parentId) {
     let parent = this.scene;
     if (parentId !== null) {
@@ -296,6 +603,16 @@ export class SceneHost {
 
   forget(id, n) {
     this.nodes.delete(id);
+    if (n.glide) this.gliding.delete(n.glide);
+    if (n.instances) {
+      this.instances -= n.count;
+      this.instanceVertices -= n.vertices;
+      this.instanceSets.delete(n.instances);
+      n.instances.mesh.material.dispose();
+      n.instances.shell?.material.dispose();
+      n.instances.mesh.dispose();
+      n.instances.shell?.dispose();
+    }
     if (n.ownGeometry) {
       this.vertices -= n.ownGeometry.attributes.position.count;
       n.ownGeometry.dispose();
@@ -552,10 +869,11 @@ export class SceneHost {
 
   // ---- camera, world, effects -------------------------------------------------------------
 
+  // The camera glides like a node (its position and the point it looks at), unless snap: true
+  // or smooth: false.
   setCamera(p) {
     const cam = this.camera;
     if (p.safe !== undefined) this.safeCamera = p.safe === true;
-    if (p.pos !== undefined) cam.position.fromArray(vec3(p.pos, [0, 5, 10]));
     if (p.fov !== undefined) {
       const fov = num(p.fov, 10, 120, cam.fov);
       if (fov !== cam.fov) {
@@ -563,7 +881,26 @@ export class SceneHost {
         cam.updateProjectionMatrix();
       }
     }
-    if (p.look !== undefined) cam.lookAt(...vec3(p.look, [0, 0, 0]));
+    const fresh = !this.cameraGlide;
+    // The point it looks at rides along as the "position" of a stand-in object.
+    const c = (this.cameraGlide ??= { glide: new Glide(cam), look: new THREE.Object3D(), lookGlide: null, smooth: true });
+    c.lookGlide ??= new Glide(c.look);
+    if (p.smooth !== undefined) c.smooth = p.smooth !== false;
+    const pos = p.pos !== undefined ? tmpPos.fromArray(vec3(p.pos, [0, 5, 10])) : null;
+    const look = p.look !== undefined ? new THREE.Vector3().fromArray(vec3(p.look, [0, 0, 0])) : null;
+    const now = performance.now();
+    if (fresh || p.snap === true || !c.smooth || !this.glideMs) {
+      if (pos) c.glide.toPos.copy(pos);
+      if (look) c.lookGlide.toPos.copy(look);
+      cam.position.copy(c.glide.toPos);
+      c.look.position.copy(c.lookGlide.toPos);
+      this.gliding.delete(c.glide);
+      this.gliding.delete(c.lookGlide);
+    } else {
+      if (pos && c.glide.aim(pos, null, null, now, this.glideMs)) this.gliding.add(c.glide);
+      if (look && c.lookGlide.aim(look, null, null, now, this.glideMs)) this.gliding.add(c.lookGlide);
+    }
+    cam.lookAt(c.look.position);
   }
 
   // Each part of the world can be added once: { sky, lights: { shadowSize }, clouds: {...},
@@ -626,6 +963,10 @@ export class SceneHost {
   }
 
   tick(dt) {
+    const now = performance.now();
+    for (const g of this.gliding) if (!g.step(now, this.glideMs)) this.gliding.delete(g);
+    for (const set of this.instanceSets) set.step(now, this.glideMs);
+    if (this.cameraGlide) this.camera.lookAt(this.cameraGlide.look.position);
     this.frameSafe();
     for (const n of this.nodes.values()) if (n.avatar) n.avatar.update(dt, n.mode, n.speed);
     this.particles?.update(dt);

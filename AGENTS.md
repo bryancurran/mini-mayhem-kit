@@ -75,7 +75,8 @@ netcode, spectators, the results screen and coins. You write the rules and the l
    Open them and check that:
    - the camera shows the action;
    - text and HUD don't overlap;
-   - players can tell themselves apart.
+   - players can tell themselves apart;
+   - it passes "Polish" (below): a world rather than a void, feedback on every action.
 
    Its options:
    - `-- --phone` for a phone screen (repeat the shots with it);
@@ -140,7 +141,10 @@ of the rest.
   - Use `view.events` only for one-off effects: sounds, particles, floating text.
   - Use `view.confirmed` for anything that must not be wrong, like announcing the winner.
   - Never change `state` in view.js.
-  - Smooth other players' positions (see Coin Dash's view.js) so corrections don't jump.
+  - Set positions straight from the state: the engine glides every node and the camera between
+    ticks, so motion is smooth and corrections don't jump. Don't smooth them yourself on top
+    (it only adds lag), and pass `snap: true` for a move that should be a jump (a respawn, a
+    teleport). See "Smooth motion" in `docs/making-games.md`.
 - **Keep the action clear of the HUD.**
   - The score chips run along the top, and the timer sits top right.
   - The controls hint runs along the bottom; on phones the touch buttons take the bottom
@@ -190,6 +194,27 @@ of the rest.
   - `mm.world({ sky: true, lights: {...} })`;
   - sounds from the list in the docs.
 
+### Polish: what makes it feel like an official game
+
+A game that passes the check works; these make it feel good. Go through them before you call a
+game done, and look at it (`npm run shot`, on a phone too, and `npm run play`) rather than
+assuming. Compare it with `examples/`.
+
+- **Motion:** `tickRate` 60 for anything fast (running, driving, bumping, jumping), 30 for
+  slower games. Positions straight from the state (the engine glides them), `snap: true` for
+  jumps. Nothing should move in steps or jitter.
+- **Feel:** every action answers straight away with a sound (`mm.sound`), a burst
+  (`mm.burst`), an avatar mode (`jump`, `happy`, `fall`) or floating text (a `float` label).
+  Hits, catches, scores and knock-outs deserve something bigger.
+- **Camera:** frames the action on the free part of the screen (`safe: true`), keeps every
+  player in view, follows smoothly, and works with the phone held upright.
+- **Look:** a world to play in, not a flat void: sky, clouds or a backdrop, ground with some
+  detail, shadows on the things that move, a small palette of cartoon colors, and big, readable
+  shapes. Lots of the same thing (coins, crowds, debris) as `mm.instances`, not hundreds of nodes.
+- **Clarity:** the intro banner says what to do, the HUD shows the score and time, and the end
+  is announced from `view.confirmed` with a moment to celebrate (Coin Dash ends with two seconds
+  of cheering) before the results.
+
 ## What gets an upload turned down
 
 Before anything else, an upload that's just the starter game or an example with a new name is
@@ -226,7 +251,7 @@ It doesn't judge quality: simple games are welcome.
 ```
 AGENTS.md                this file
 docs/making-games.md     the full API: manifest, rules, view, the mm kit, netcode, limits
-examples/coin-dash/      the starter game (small, avatars and a stick)
+examples/coin-dash/      the starter game (small, avatars, a stick, instances)
 examples/sandwich-stack/ a full game (custom geometry, textures, baking, events)
 examples/word-rush/      a typing game (the text box, live typing, bot())
 templates/starter/       what npm run new copies

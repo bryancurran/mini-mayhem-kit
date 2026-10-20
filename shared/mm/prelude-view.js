@@ -17,6 +17,7 @@
 
   let out = []; // commands, in call order
   const dirty = new Map(); // node id -> properties changed this frame (sent at the end)
+  const placed = new Map(); // instances node id -> Map(copy -> properties changed this frame)
   let camera = null;
   const hudLast = {}; // last value sent per HUD part, so unchanged ones aren't resent
   let nextId = 1;
@@ -46,6 +47,8 @@
   function flush() {
     for (const [id, props] of dirty) out.push(['set', id, props]);
     dirty.clear();
+    for (const [id, copies] of placed) out.push(['inst', id, [...copies]]);
+    placed.clear();
   }
 
   // ---- scene nodes ------------------------------------------------------------------------
@@ -80,6 +83,7 @@
   Node.prototype.forget = function () {
     this.alive = false;
     dirty.delete(this.id);
+    placed.delete(this.id);
     for (const child of this.children) child.forget();
     this.children.clear();
   };
@@ -90,6 +94,33 @@
     if (this.parent) this.parent.children.delete(this);
     this.forget();
     out.push(['del', this.id]);
+  };
+
+  // Many copies of one shape drawn at once (mm.instances). Each copy shows once it's placed.
+  function Instances(props) {
+    Node.call(this, 'instances', props);
+    this.count = props && Number.isInteger(props.count) ? props.count : 1;
+  }
+  Instances.prototype = Object.create(Node.prototype);
+  // Many copies in one go (much quicker than .at for each): { from, pos: [x, y, z, x, y, z, ...],
+  // rot: (3 numbers a copy), scale: (1 a copy), color: ['#hex', ...], shown, snap }, starting at
+  // copy `from` (0). shown: how many copies to show from the start (the rest are hidden).
+  Instances.prototype.update = function (data) {
+    if (!this.alive || !data) return this;
+    flush(); // keeps it in order with .at
+    out.push(['ibulk', this.id, data]);
+    return this;
+  };
+  // Places copy i: { pos, rot, scale, color, visible }. Several changes in one frame are sent as one.
+  Instances.prototype.at = function (i, props) {
+    if (!this.alive || !Number.isInteger(i) || i < 0 || i >= this.count) return this;
+    let copies = placed.get(this.id);
+    if (!copies) placed.set(this.id, (copies = new Map()));
+    const p = pack(props);
+    const d = copies.get(i);
+    if (d) Object.assign(d, p);
+    else copies.set(i, p);
+    return this;
   };
 
   function Resource(kind) {
@@ -153,6 +184,9 @@
     mesh: (props) => new Node('mesh', props),
     avatar: (props) => new Node('avatar', props),
     label: (props) => new Node('label', props),
+    // { shape | geometry, color | material, count, shadow, outline, parent }: place copies with
+    // .update({ pos: [...], ... }) (many at once) or .at(i, { pos, rot, scale, color, visible }).
+    instances: (props) => new Instances(props),
 
     material(props) {
       const r = new Resource('material');

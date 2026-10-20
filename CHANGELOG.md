@@ -3,6 +3,22 @@
 `npm run update` gets the latest kit and prints what changed since yours. Uploads need the
 latest kit: Mini Mosh turns down games packed with an older one, and says how to update.
 
+## v5 (October 2026)
+
+- **Smooth motion, built in.** The engine now glides every node, every instance and the camera
+  between ticks, so games look smooth on 60 and 120 Hz screens and other players don't jump
+  when their moves arrive. Set positions straight from the state and drop your own smoothing
+  (it only adds lag). `snap: true` makes a move a jump; `smooth: false` turns gliding off for a
+  node. Games already in the library get it too, without being uploaded again.
+- **`mm.instances({ shape, color, count })`**: many copies of one shape for the price of one
+  node (crowds, coins, debris). Place them all at once with `.update({ pos: [...] })`, or one
+  with `.at(i, { pos, rot, scale, color })`.
+- **`view.alpha`**: how far the present is into the next tick (0 to 1).
+- **`tickRate` 60 for fast games.** The starter (Coin Dash) now runs at 60, draws straight from
+  the state and uses instances for its coins.
+- **Polish checklist** in `AGENTS.md`: what makes a game feel like an official one.
+- Packages say `"kit": 5`. Uploads need kit v5: run `npm run update`.
+
 ## v4 (October 2026)
 
 - **Sign the kit in: `npm run login`.** Every game in the library now belongs to someone's Mini

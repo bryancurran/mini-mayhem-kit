@@ -42,7 +42,7 @@ to the game's library (see Uploading).
   "rules": ["How to play, one short line each (1-6 lines)."],
   "controls": { "keyboard": "Space to jump", "touch": "Tap anywhere to jump", "gamepad": "A to jump" },
   "intro": "Shown as a banner during the countdown (optional).",
-  "tickRate": 30,
+  "tickRate": 60,
   "countdown": 3,
   "players": { "min": 1, "max": 8 },
   "input": { "buttons": ["a"], "dirs": false, "move": false, "touch": "tap" }
@@ -51,7 +51,9 @@ to the game's library (see Uploading).
 
 - `id`: lowercase letters, digits and dashes.
 - `color`: the game's segments on the spin wheel.
-- `tickRate`: rule steps per second, 10-60.
+- `tickRate`: rule steps per second, 10-60. Use 60 for anything fast (running, driving, flying,
+  bumping, aiming a jump), which also makes presses land sooner; 30 for slower games; less only
+  for games played a move at a time. It costs server time (see Limits), so keep `step` lean.
 - `players` (required): the fewest and the most players the game takes, from 1 to 8. The lobby
   won't start it with fewer or more, and the play test, the playground and the bots stay inside
   it. Take 1 to 8 if you can: a room holds up to 8, and playing alone is how people practise and
@@ -197,6 +199,8 @@ not for someone joining mid-game). `render(state, view)` runs every frame.
 - `time`: game time right now, smooth, for animation.
 - `dt`
 - `tick`
+- `alpha`: how far the present is into the next tick, from 0 up to 1 (the state is as of the
+  start of it). Rarely needed: see Smooth motion.
 - `screen`: `{ width, height, aspect, portrait, safe }`. `safe` is the part of the screen the
   HUD doesn't cover: `{ top, bottom, left, right }` in pixels from each edge, and the `width`,
   `height` and `aspect` of what's left. See the camera's `safe` option below.
@@ -212,6 +216,20 @@ prediction gets corrected (someone else's input turns up late), the drawing just
 Use `confirmed` events for announcements that must not be wrong, such as who won. Don't
 change `state` in the view.
 
+### Smooth motion
+
+The state only moves on once a tick, but screens draw 60 or 120 frames a second, so things drawn
+straight from it would move in steps. The engine takes care of that: every node, every copy in
+`mm.instances` and the camera glide to where you put them, over one tick. So set positions
+straight from the state, and motion is smooth on any screen, including other players' corrections.
+Don't smooth them yourself as well: that only adds lag.
+
+- `snap: true` in a `.set()` (or an instance's `.at()`, or `mm.camera`) makes that one move a jump:
+  for teleports, respawns, a coin that reappears somewhere else.
+- `smooth: false` on a node (or `mm.camera`) turns gliding off for it, for things you animate
+  exactly yourself (with `view.alpha`, say).
+- Things just made, shown again after being hidden, or moved to another parent always jump.
+
 ### Scene
 
 Nodes are created with a function and changed with `.set({...})`. Several changes in one
@@ -222,7 +240,22 @@ mm.group({ pos, rot, scale, parent, visible })
 mm.mesh({ shape | geometry, color | material, pos, rot, scale, parent, visible, shadow })
 mm.avatar({ color, mode, speed, crown, shadow, pos, rot, scale, parent })   // the party critter
 mm.label({ text, style: 'tag' | 'float', tone: 'good' | 'great' | 'bad', color, pos, opacity, parent })
+mm.instances({ shape | geometry, color | material, count, shadow, outline, pos, rot, scale, parent })
 ```
+
+`mm.instances` draws many copies of one shape at once (a crowd, coins, debris, a field of grass)
+for the price of one node. Each copy shows once it's placed:
+- `.at(i, { pos, rot, scale, color, visible, snap })` places copy `i`. Fine for a few dozen.
+- `.update({ from, pos, rot, scale, color, shown, snap })` places many at once, much more cheaply:
+  `pos` and `rot` are flat arrays of 3 numbers a copy (`[x0, y0, z0, x1, y1, z1, ...]`), `scale`
+  1 number a copy, `color` one color a copy, starting at copy `from` (0). `shown: n` shows the
+  first `n` copies and hides the rest. Reuse the same arrays every frame, and round the numbers
+  (to 3 decimals, say) to keep frames small.
+- A few hundred copies moving every frame is fine; thousands are fine if they mostly stay put.
+- `count`: up to 4096 copies each, 20000 in all.
+- `color` on a copy tints it: start from a white `color` for copies in different colors.
+- `outline: false` leaves the cartoon outline off.
+- Copies can't be baked: keep them out of groups you `mm.bake`.
 
 - `pos`, `rot` (radians, XYZ order) and `scale` (a number or `[x, y, z]`) are like
   three.js. y is up.
@@ -274,7 +307,7 @@ mm.bake(group)
 
 ```js
 mm.world({ sky: true, lights: { shadowSize }, clouds: { count, minRadius, maxRadius, minY, maxY }, background: '#hex', fog: ['#hex', near, far] })
-mm.camera({ pos, look, fov, safe })
+mm.camera({ pos, look, fov, safe, snap, smooth })
 mm.burst({ pos, count, speed, up, life, size, gravity, colors })
 mm.sound(name, ...numbers)
 ```
@@ -348,6 +381,7 @@ People who join or refresh mid-game get the confirmed state and every input sinc
 | sustained time | 100 ms per second on the server; 70% of a browser's time |
 | state | 256 KB as JSON |
 | drawing | 6000 nodes, 2000 materials, textures and geometries, 96 textures (up to 1024²), 1.5 M vertices, 200 labels, 4 MB of commands per frame, 8 sounds per frame |
+| instances | 4096 copies each, 20000 in all, 3 M vertices across them (copies × the shape's vertices) |
 | inputs | 60 per second per player (a press and its release are two) |
 | typing | 100 characters at a time (`maxLength`) |
 
