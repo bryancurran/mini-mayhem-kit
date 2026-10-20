@@ -594,7 +594,7 @@ input:focus {
   cursor: pointer;
 }
 
-/* All, Standard, User created: a little tighter to fit side by side. */
+/* Three side by side: a little tighter to fit. */
 .game-tab:first-child:nth-last-child(3),
 .game-tab:first-child:nth-last-child(3) ~ .game-tab {
   padding: 5px 6px;

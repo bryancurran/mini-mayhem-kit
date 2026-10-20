@@ -211,6 +211,16 @@
     crowd: (props) => new Crowd(props),
     // A thin line through points: { points: [x, y, z, ...], color, parent, pos } (a wire, a laser).
     line: (props) => new Node('line', props),
+    // Another of a group built already (a baked one), sharing its shapes and materials: a group
+    // of its own, in one piece, placed with props ({ pos, rot, scale, parent, ... }).
+    copy(source, props) {
+      if (!source || !source.alive) throw new Error('mm.copy() needs a group');
+      flush();
+      return new Node('group', Object.assign({}, props, { copy: source.id }));
+    },
+    // A bank of cloud in front of the scene: { pos, width, height, edge, top, color }, solid above
+    // a wavy lower edge (the world height edge) up to top; move edge with .set({ edge }).
+    mist: (props) => new Node('mist', props),
     // How the controls behave: { turn } adds quarter turns clockwise to every direction the
     // player gives, for a camera that looks along another axis (up on screen is then right on the
     // floor). Sent only when it changes.
@@ -243,13 +253,14 @@
       return r;
     },
     // Merges every mesh under a group into as few meshes as possible (one draw call per
-    // material) and removes the nodes that were under it.
-    bake(group) {
+    // material) and removes the nodes that were under it. { colors: true }: meshes in plain colors
+    // become one mesh, each part keeping its color (one draw call for a model in many colors).
+    bake(group, options) {
       if (!group || !group.alive) return;
       flush();
       for (const child of group.children) child.forget();
       group.children.clear();
-      out.push(['bake', group.id]);
+      out.push(['bake', group.id, options && options.colors === true ? { colors: true } : {}]);
     },
     world(options) {
       out.push(['world', options || {}]);

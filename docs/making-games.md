@@ -309,10 +309,12 @@ frame are sent as one. `.remove()` removes a node and everything under it.
 mm.group({ pos, rot, scale, parent, part, visible })
 mm.mesh({ shape | geometry, color | material, pos, rot, scale, parent, part, visible, shadow })
 mm.avatar({ color, mode, speed, crown, shadow, pos, rot, scale, parent, part })   // a Mosh, the players' character
-mm.label({ text, style: 'tag' | 'me' | 'float', tone: 'good' | 'great' | 'bad', color, pos, opacity, parent, part })
+mm.label({ text, strong, style: 'tag' | 'me' | 'float' | 'bubble', tone: 'good' | 'great' | 'bad', color, pos, opacity, parent, part })
 mm.instances({ shape | geometry, color | material, count, shadow, outline, colorEase, pos, rot, scale, parent, part })
 mm.crowd({ max, shadow, pos, parent })           // lots of little Moshes at once (a conga line, an audience)
 mm.line({ points: [x, y, z, ...], color, pos, parent })   // a thin line (a wire, a laser)
+mm.mist({ pos, width, height, edge, top, color })         // a bank of cloud with a wavy lower edge
+mm.copy(group, { pos, rot, scale, parent, visible })      // another of a group built already
 ```
 
 `mm.instances` draws many copies of one shape at once (a crowd, coins, debris, a field of grass)
@@ -345,7 +347,20 @@ hat })` places the first `shown` of them, from Mosh `from` (0) on:
 - `max` up to 2000 in all.
 
 Labels: `style: 'tag'` is a name tag in the player's `color`, `'me'` the same tag filled in with it
-(for "YOU" over your own Mosh), and `'float'` floating text in a `tone`.
+(for "YOU" over your own Mosh), `'float'` floating text in a `tone`, and `'bubble'` a pulsing
+yellow call to action over someone ("MASH! 3"). `strong` is a bit after the text in bold (the
+count).
+
+`mm.mist` is a bank of cloud standing in front of the scene (facing the camera, like a wall): solid
+from a wavy lower edge at the world height `edge` up to `top`, where it fades, its waves rolling
+by themselves. Move `edge` with `.set({ edge })` to hide what's above it and show what's below:
+Beanstalk Blitz hides the leaves more than two rows ahead. `width` and `height` (400 and 100) are
+the size of the wall, set when it's made.
+
+`mm.copy(group, props)` makes another of a group that's already built (and usually baked),
+sharing its shapes, geometry and materials: what you'd otherwise build again for each player,
+like a lane of a race. The copy is one piece: move, scale or hide it as a whole. Labels and
+avatars under the group aren't copied.
 
 - `pos`, `rot` (radians, XYZ order) and `scale` (a number or `[x, y, z]`) are like
   three.js. y is up. Numbers you pass to drawing calls are sent to 4 decimal places.
@@ -367,6 +382,12 @@ Labels: `style: 'tag'` is a name tag in the player's `color`, `'me'` the same ta
   - `['capsule', r, length, capSegments, radialSegments]`
   - `['lathe', [[x, y], ...], segments, phiStart, phiLength]`: a profile spun round the y axis,
     `x` being how far out from the middle (a vase, a mushroom cap); 2 to 200 points.
+  - `['extrude', path, { depth, bevelEnabled, bevelThickness, bevelSize, bevelSegments,
+    curveSegments }]`: a flat outline pushed out along z into a solid (a star, a leaf, a logo).
+    `path` is drawn as on a canvas: `[['moveTo', x, y], ['lineTo', x, y], ['bezierCurveTo',
+    c1x, c1y, c2x, c2y, x, y], ['quadraticCurveTo', cx, cy, x, y], ...]`. The options are three.js's
+    (`depth` 1, a bevel `bevelThickness` 0.2 deep and `bevelSize` 0.1 wide in `bevelSegments` 3
+    steps, curves in `curveSegments` 12); `bevelEnabled: false` for flat sides.
 
   Everything after the sizes can be left out. The angles are in radians, as in three.js: part of
   a sphere is a dome, half a cylinder (`openEnded: true` leaves its ends off) is an arch, part of
@@ -386,7 +407,7 @@ Labels: `style: 'tag'` is a name tag in the player's `color`, `'me'` the same ta
 mm.material({ color, texture, repeat: [u, v], opacity, transparent, depthWrite, side: 'double', emissive, unlit, outline, blending: 'add' })
 mm.texture(width, height, (g, w, h) => { g.fillStyle = '#f00'; g.fillRect(0, 0, w, h); }, { repeat: true, pixelated: false, anisotropy: 4 })
 mm.geometry({ positions, ... })
-mm.bake(group)
+mm.bake(group, { colors })
 ```
 
 - **Materials:** `.set()` changes a material, for example to fade its opacity. `.dispose()`
@@ -409,12 +430,15 @@ mm.bake(group)
     floor stretching away from a chase camera.
 - **`mm.bake(group)`:** merges every mesh under the group into one mesh per material and
   removes the nodes that were under it. Use it for anything big that stops changing: a tall
-  sandwich is a handful of draw calls instead of hundreds.
+  sandwich is a handful of draw calls instead of hundreds. With `{ colors: true }`, every mesh
+  in a plain color (no texture, not see-through, not glowing) goes into one mesh that keeps each
+  part's color: a model in a dozen colors is one draw call. Bake big things in pieces (a band of
+  rows at a time) so the pieces off screen aren't drawn.
 
 ### World, camera, effects, sound
 
 ```js
-mm.world({ sky: true, lights: { shadowSize, sky, ground, ambient, sun, sunIntensity, sunPos }, clouds: { count, minRadius, maxRadius, minY, maxY, spots }, water: { y }, stars: { count, radius, size, color }, background: '#hex', fog: ['#hex', near, far] })
+mm.world({ sky: true, lights: { shadowSize, shadows, sky, ground, ambient, sun, sunIntensity, sunPos }, clouds: { count, minRadius, maxRadius, minY, maxY, spots, drift, wrap, scale }, water: { y }, stars: { count, radius, size, color }, backdrop: { stops, top, stars, z, size }, background: '#hex', fog: ['#hex', near, far] })
 mm.sun({ pos, target })
 mm.camera({ pos, look, fov, safe, snap, smooth })
 mm.burst({ pos, count, speed, up, life, size, gravity, colors })
@@ -427,10 +451,19 @@ mm.sound(name, ...numbers)
 - `lights`: daylight unless you say otherwise: `sky` and `ground` (the colors of the light from
   above and below), `ambient` (its strength, 1.6), and the sun's color (`sun`), strength
   (`sunIntensity`, 2.2) and place (`sunPos`, `[14, 30, 10]`), for a night or a sunset.
+  `shadows: false` when nothing in the game casts a shadow (it saves drawing them).
 - `stars`: points of light all round, above the horizon, the same size however far (`count`
   500, `radius` 150, `size` 1.4 px), for a night sky (with a dark `background`).
 - `clouds`: puffy clouds in a slow ring round the middle, or `spots: [[x, y, z], ...]` (up to 60)
-  to put each one where you want it (all along a race course).
+  to put each one where you want it (all along a race course). `drift: [min, max]` has each one
+  drift sideways (along x) at its own speed in that range, either way, coming back round at x =
+  ±`wrap` (80), and `scale: [min, max]` sizes them.
+- `backdrop`: for a scene seen from the side (a climb, a tower): a wall of sky behind it, at
+  `z` (-150, `size` [900, 500]), that follows the point the camera looks at and changes color with
+  its height: `stops: [[0, '#aee4ff'], [0.3, '#58b0ff'], ..., [1, '#161040']]` (2 to 6) from the
+  ground to `top` (a height), easing from each to the next. `stars: [from, to]` has twinkling
+  stars come out between those two fractions of the way up (Beanstalk Blitz's day-to-night
+  sky). Give it a `background` color too, for the edges.
 - `mm.sun`: the sun's shadows only cover `shadowSize` either side of the point it shines at (the
   middle of the scene). For a world bigger than that (a long course with a chase camera), move
   the sun along with the action every frame: `pos` is where it shines from and `target` the
@@ -463,7 +496,7 @@ mm.hud.callout({ text, color, icon, progress, flash })   // the big call of the 
 mm.hud.meter({ icon: '🥪', values: [0..1 per player], stops: ['#hex', ['#hex', 40], ...], done: [2], across })
 mm.hud.place(2, 4)                                       // your place: "2nd /4" at the top right; null hides it
 mm.hud.center('YOU WIN!', { style: 'count' | 'go' | 'bad' | 'big', ms })   // ms: 0 keeps it up
-mm.hud.banner('Text', { style: 'info' | 'warn', ms })
+mm.hud.banner('Text', { style: 'info' | 'warn' | 'section', title, ms })   // title: in bold above (with 'section')
 mm.hud.textbox({ show, placeholder })                    // typing games: the text box; false hides it
 ```
 
@@ -478,8 +511,9 @@ mm.hud.textbox({ show, placeholder })                    // typing games: the te
   (the `icon`, at the far end). Down the right edge, colored by `stops` (Sandwich Stack's tower),
   or with `across: true` along the top (Sky Sprint's course, the icon a 🏁). Players in `done`
   are dimmed (they've finished).
-- `mm.hud.place`: where you are in the race right now, at the top right (leave it out for
-  spectators).
+- `mm.hud.place`: where you are in the race right now, at the top right (`null` for
+  spectators). With a place, the tower meter and no score chips, the timer sits in the middle
+  of the top (Beanstalk Blitz).
 - `mm.hud.callout`: a card with `text` (up to 24 characters) in `color`, an `icon` (a symbol or
   emoji) in a swatch of that color, and a bar below that runs down as `progress` goes from 1 to 0
   (leave it out for no bar). `flash: true` makes it blink (time's up). It pops in whenever its
@@ -559,7 +593,7 @@ logout` signs it out, and so does **Sign it out** under the coin button on the s
 Then `npm run upload my-game`. Your games show your account's name as their maker: the name you
 play under, which you set in **Your name** on the site's home screen (change it there and every
 game you've made shows the new one). Or build the file with `npm run pack my-game` and upload `dist/my-game.mm`
-from a lobby, signed in: open the **User created** tab and press **Upload a game (.mm)**. It's
+from a lobby, signed in: open the **All games** tab and press **Upload a game (.mm)**. It's
 checked in three steps, and you'll see why if it's turned down:
 
 1. **File:** at most 200 KB, a valid package, an `id` and `name` no other game uses, and not
@@ -579,7 +613,7 @@ checked in three steps, and you'll see why if it's turned down:
 Each account can have up to 100 games in the library (updates don't count): delete one to
 make room for another.
 
-Accepted games are playable right away. Everyone in a lobby sees them under User created, and
+Accepted games are playable right away. Everyone in a lobby sees them under All games, and
 the host can pick them like any other game. They don't appear on the spin wheel. Anyone can also
 find them from the home screen: **Games** lists every game with its rules, and **Play it** makes
 a room with that game up first.

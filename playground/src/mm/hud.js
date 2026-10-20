@@ -196,11 +196,11 @@ export class Hud {
   }
 
   // Your place in the race ("2nd /4") at the top right: { place, of }, or null to hide it. Without
-  // a race track across the top or score chips, the timer moves to the middle (Beanstalk Blitz).
+  // a race track across the top or score chips, the timer moves to the middle (Beanstalk Blitz),
+  // for spectators too (whose place is hidden).
   place(o) {
     const place = o && typeof o === 'object' && Number.isInteger(o.place) && o.place > 0 ? Math.min(99, o.place) : null;
     if (!this.placeEl) {
-      if (place === null) return;
       const el = (this.placeEl = document.createElement('div'));
       el.className = 'race-place';
       el.innerHTML = '<span class="race-place-value"></span><span class="race-place-of"></span>';
@@ -291,6 +291,8 @@ export class Hud {
     if (!value) return;
     b.className = `hud-banner${BANNER_STYLES.has(options?.style) ? ` ${options.style}` : ''}`;
     b.textContent = value;
+    // A title in bold above the text (a section's name over its hint).
+    if (options?.title) b.prepend(Object.assign(document.createElement('b'), { textContent: str(options.title, 40) }));
     const keep = ms(options?.ms, 0);
     if (keep > 0) this.bannerTimer = setTimeout(() => (b.hidden = true), keep);
   }

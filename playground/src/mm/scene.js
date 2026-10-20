@@ -41,6 +41,8 @@ const LIMITS = {
   linePoints: 2000,
   stars: 2000,
   clouds: 60, // placed with spots
+  extrudeCommands: 400,
+  mists: 8,
 };
 const COLOR = /^#[0-9a-f]{3,8}$/i;
 // Properties packed by the sandbox's drawing kit (pack in prelude-view.js) carry the numbers in
@@ -127,9 +129,139 @@ function shapeGeometry(s) {
       });
       return new THREE.LatheGeometry(profile, seg(1, 12), start(2), sweep(3));
     }
+    case 'extrude': {
+      // A flat outline (path commands, as on a canvas) pushed out along z into a solid: a star, a
+      // leaf, a logo. Options as three.js's ExtrudeGeometry has them.
+      const path = p[0];
+      const o = p[1] && typeof p[1] === 'object' && !Array.isArray(p[1]) ? p[1] : {};
+      if (!Array.isArray(path) || path.length < 2 || path.length > LIMITS.extrudeCommands) throw new BadCommand(`extrude: a list of 2-${LIMITS.extrudeCommands} path commands`);
+      const outline = new THREE.Shape();
+      for (const c of path) {
+        if (!Array.isArray(c)) throw new BadCommand('extrude: commands are like ["lineTo", x, y]');
+        const [op, ...a] = c;
+        const v = (i) => num(a[i], -1e4, 1e4, 0);
+        if (op === 'moveTo') outline.moveTo(v(0), v(1));
+        else if (op === 'lineTo') outline.lineTo(v(0), v(1));
+        else if (op === 'quadraticCurveTo') outline.quadraticCurveTo(v(0), v(1), v(2), v(3));
+        else if (op === 'bezierCurveTo') outline.bezierCurveTo(v(0), v(1), v(2), v(3), v(4), v(5));
+        else throw new BadCommand('extrude: moveTo, lineTo, quadraticCurveTo or bezierCurveTo');
+      }
+      return new THREE.ExtrudeGeometry(outline, {
+        depth: num(o.depth, 0, 1e4, 1),
+        bevelEnabled: o.bevelEnabled !== false,
+        bevelThickness: num(o.bevelThickness, 0, 1e4, 0.2),
+        bevelSize: num(o.bevelSize, 0, 1e4, 0.1),
+        bevelSegments: Math.round(num(o.bevelSegments, 1, 16, 3)),
+        curveSegments: Math.round(num(o.curveSegments, 1, 64, 12)),
+      });
+    }
     default:
       throw new BadCommand(`unknown shape "${String(kind).slice(0, 20)}"`);
   }
+}
+
+// mm.world({ backdrop }): a wall of sky behind a scene seen from the side (a climb), following the
+// camera, its color going through stops by how high the camera is, with twinkling stars from a
+// height on (Beanstalk Blitz's sky).
+function backdropMaterial(stops, top, stars) {
+  const colors = stops.map(([, c]) => new THREE.Color(c));
+  const at = stops.map(([h]) => h);
+  while (colors.length < 6) colors.push(colors[colors.length - 1].clone()), at.push(at[at.length - 1]);
+  return noOutline(
+    new THREE.ShaderMaterial({
+      depthWrite: false,
+      uniforms: {
+        uCamY: { value: 0 },
+        uTop: { value: top },
+        uTime: { value: 0 },
+        uC: { value: colors },
+        uS: { value: at },
+        uN: { value: stops.length },
+        uStars: { value: new THREE.Vector2(stars?.[0] ?? 0, stars?.[1] ?? 0) },
+      },
+      vertexShader: /* glsl */ `
+        varying vec3 vWorld;
+        void main() {
+          vec4 world = modelMatrix * vec4(position, 1.0);
+          vWorld = world.xyz;
+          gl_Position = projectionMatrix * viewMatrix * world;
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform float uCamY;
+        uniform float uTop;
+        uniform float uTime;
+        uniform vec3 uC[6];
+        uniform float uS[6];
+        uniform int uN;
+        uniform vec2 uStars;
+        varying vec3 vWorld;
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+        void main() {
+          float localY = vWorld.y - uCamY;
+          float h = clamp((uCamY + localY * 0.3) / uTop, 0.0, 1.0);
+          vec3 col = uC[0];
+          for (int i = 1; i < 6; i++) {
+            if (i >= uN) break;
+            col = mix(col, uC[i], smoothstep(uS[i - 1], uS[i], h));
+          }
+          if (uStars.y > uStars.x) {
+            // Stars drift by slowly as the camera climbs.
+            vec2 p = vec2(vWorld.x, localY + uCamY * 0.15) / 3.0;
+            vec2 cell = floor(p);
+            float r = hash(cell);
+            if (r > 0.85) {
+              vec2 spot = vec2(hash(cell + 7.1), hash(cell + 3.3)) * 0.7 + 0.15;
+              float twinkle = 0.55 + 0.45 * sin(uTime * (1.5 + r * 3.0) + r * 40.0);
+              col += smoothstep(0.08, 0.0, length(fract(p) - spot)) * twinkle * smoothstep(uStars.x, uStars.y, h);
+            }
+          }
+          gl_FragColor = vec4(col, 1.0);
+          #include <colorspace_fragment>
+        }`,
+    }),
+  );
+}
+
+// mm.mist: a bank of cloud in front of the scene, solid above a wavy lower edge (world height
+// edge) up to top, gently rolling (Beanstalk Blitz's Cloud Cover).
+function mistMaterial() {
+  return noOutline(
+    new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      uniforms: {
+        uEdge: { value: 0 },
+        uTop: { value: 1000 },
+        uTime: { value: 0 },
+        uColor: { value: new THREE.Color('#efeaff') },
+      },
+      vertexShader: /* glsl */ `
+        varying vec3 vWorld;
+        void main() {
+          vec4 world = modelMatrix * vec4(position, 1.0);
+          vWorld = world.xyz;
+          gl_Position = projectionMatrix * viewMatrix * world;
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform float uEdge;
+        uniform float uTop;
+        uniform float uTime;
+        uniform vec3 uColor;
+        varying vec3 vWorld;
+        void main() {
+          float x = vWorld.x;
+          float y = vWorld.y;
+          float wave = sin(x * 0.9 + uTime * 0.7) * 0.22 + sin(x * 2.3 - uTime * 1.1) * 0.1 + sin(x * 0.31 + uTime * 0.2) * 0.3;
+          float a = smoothstep(uEdge + wave, uEdge + wave + 1.5, y);
+          a *= 1.0 - smoothstep(uTop - 1.5, uTop + 0.8, y);
+          float puff = sin(x * 0.55 + y * 0.8 + uTime * 0.3) * sin(y * 1.3 - x * 0.2 - uTime * 0.4);
+          gl_FragColor = vec4(uColor - puff * 0.06, a * 0.94);
+          #include <colorspace_fragment>
+        }`,
+    }),
+  );
 }
 
 // Where something is drawn, gliding to where the view puts it. Most things move with the game's
@@ -416,6 +548,9 @@ export class SceneHost {
     this.ripples = null;
     this.clouds = null;
     this.sun = null; // the sun from mm.world({ lights })
+    this.cloudWrap = null; // drifting clouds come back round at x = ±this
+    this.backdrop = null; // mm.world({ backdrop }): { mesh, z }
+    this.mists = new Set(); // mm.mist nodes' materials (their waves roll with time)
     this.water = null;
     this.time = 0; // seconds since the game's first frame (the water's waves)
     this.badCount = 0;
@@ -473,7 +608,7 @@ export class SceneHost {
         else if (op === 'tex') this.addResource(a, 'texture', this.makeTexture(b, d, e, f));
         else if (op === 'geo') this.addResource(a, 'geometry', this.makeGeometry(b));
         else if (op === 'free') this.free(a);
-        else if (op === 'bake') this.bake(a);
+        else if (op === 'bake') this.bake(a, b ?? {});
         else if (op === 'camera') this.setCamera(a ?? {});
         else if (op === 'world') this.world(a ?? {});
         else if (op === 'sun') this.moveSun(a ?? {});
@@ -532,6 +667,25 @@ export class SceneHost {
     const n = { kind, obj: null, ownGeometry: null };
     if (kind === 'group') {
       n.obj = new THREE.Group();
+      // mm.copy: another of something already built (a baked lane of a beanstalk), sharing its
+      // shapes and materials. The copy is all one piece: what's under it isn't nodes of its own.
+      if (props.copy !== undefined) {
+        const src = this.node(props.copy);
+        if (src.kind !== 'group') throw new BadCommand('only groups can be copied');
+        for (const child of src.obj.children) {
+          const c = child.clone(true);
+          const labels = [];
+          c.traverse((o) => {
+            if (o.isCSS2DObject) labels.push(o);
+            delete o.userData.mmId;
+            delete o.userData.mmBaked; // its geometry is the original's, which frees it
+            delete o.userData.mmBakedMaterial;
+            o.userData.mmCopy = true;
+          });
+          for (const l of labels) l.removeFromParent();
+          if (!c.isCSS2DObject) n.obj.add(c);
+        }
+      }
     } else if (kind === 'mesh') {
       n.obj = new THREE.Mesh(this.shape(['box', 1, 1, 1]), this.colorMaterial('#ffffff'));
     } else if (kind === 'avatar') {
@@ -561,6 +715,14 @@ export class SceneHost {
     } else if (kind === 'line') {
       n.obj = new THREE.Line(new THREE.BufferGeometry(), noOutline(new THREE.LineBasicMaterial({ color: '#ffffff' })));
       n.ownGeometry = null;
+    } else if (kind === 'mist') {
+      if (this.mists.size >= LIMITS.mists) throw new BadCommand(`too many mists (at most ${LIMITS.mists})`);
+      const geo = new THREE.PlaneGeometry(num(props.width, 1, 2000, 400), num(props.height, 1, 2000, 100));
+      n.obj = new THREE.Mesh(geo, mistMaterial());
+      n.obj.renderOrder = 5;
+      n.ownGeometry = geo;
+      this.vertices += geo.attributes.position.count;
+      this.mists.add(n.obj.material);
     } else {
       throw new BadCommand(`unknown node kind "${String(kind).slice(0, 20)}"`);
     }
@@ -646,14 +808,37 @@ export class SceneHost {
       }
     } else if (n.kind === 'label') {
       const el = n.label;
-      if (p.text !== undefined) el.textContent = String(p.text).slice(0, 60);
       if (p.style !== undefined || p.tone !== undefined || fresh) {
+        const was = n.style;
         n.style = p.style ?? n.style ?? 'tag';
         n.tone = p.tone ?? n.tone;
-        el.className = n.style === 'float' ? `stack-float${LABEL_TONES.has(n.tone) ? ` ${n.tone}` : ''}` : n.style === 'me' ? 'nametag in-game me' : 'nametag in-game';
+        // A bubble ("MASH! 3") pulses, which only its inner part can: the renderer places the
+        // label's own element with a transform.
+        if ((n.style === 'bubble') !== (was === 'bubble')) {
+          const text = n.text ?? '';
+          el.replaceChildren();
+          el.className = '';
+          if (n.style === 'bubble') el.append(Object.assign(document.createElement('span'), { className: 'mash-bubble' }));
+          n.text = undefined;
+          if (p.text === undefined) p = { ...p, text };
+        }
+        if (n.style !== 'bubble') el.className = n.style === 'float' ? `stack-float${LABEL_TONES.has(n.tone) ? ` ${n.tone}` : ''}` : n.style === 'me' ? 'nametag in-game me' : 'nametag in-game';
+      }
+      if (p.text !== undefined || p.strong !== undefined) {
+        if (p.text !== undefined) n.text = String(p.text).slice(0, 60);
+        if (p.strong !== undefined) n.strong = p.strong === null ? '' : String(p.strong).slice(0, 20);
+        const target = n.style === 'bubble' ? el.firstChild : el;
+        target.textContent = n.text ?? '';
+        // An emphasized bit after the text (the count in "MASH! 3").
+        if (n.strong) target.append(' ', Object.assign(document.createElement('b'), { textContent: n.strong }));
       }
       if (p.color !== undefined) el.style.setProperty('--c', color(p.color, '#999999'));
       if (p.opacity !== undefined) el.style.opacity = String(num(p.opacity, 0, 1, 1));
+    } else if (n.kind === 'mist') {
+      const u = o.material.uniforms;
+      if (p.edge !== undefined) u.uEdge.value = num(p.edge, -BIG, BIG, 0);
+      if (p.top !== undefined) u.uTop.value = num(p.top, -BIG, BIG, 1000);
+      if (p.color !== undefined) u.uColor.value.set(color(p.color, '#efeaff'));
     }
   }
 
@@ -840,6 +1025,7 @@ export class SceneHost {
       if (o.userData.mmBaked) {
         this.vertices -= o.geometry.attributes.position.count;
         o.geometry.dispose();
+        o.userData.mmBakedMaterial?.dispose();
       }
     });
   }
@@ -873,6 +1059,10 @@ export class SceneHost {
     if (n.kind === 'line') {
       this.vertices -= n.obj.geometry.attributes.position?.count ?? 0;
       n.obj.geometry.dispose();
+      n.obj.material.dispose();
+    }
+    if (n.kind === 'mist') {
+      this.mists.delete(n.obj.material);
       n.obj.material.dispose();
     }
     if (n.label) {
@@ -1054,13 +1244,17 @@ export class SceneHost {
 
   // ---- baking: merge everything under a group into one mesh (one draw call per material) ----
 
-  bake(id) {
+  // { colors: true } also merges every mesh in a plain color (no texture, opaque, not glowing) into
+  // one vertex-colored mesh: a model in many colors drawn in one go.
+  bake(id, opts = {}) {
     const group = this.node(id);
     if (group.kind !== 'group') throw new BadCommand('only groups can be baked');
     const root = group.obj;
     root.updateMatrixWorld(true);
     const inverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
-    const buckets = new Map(); // material -> { pos, nor, uv }
+    const buckets = new Map(); // material -> { pos, nor, uv, col }
+    const colored = opts.colors === true ? toon('#ffffff', { vertexColors: true }) : null;
+    const plain = (mat) => mat.isMeshToonMaterial && !mat.map && !mat.transparent && mat.opacity === 1 && mat.emissive.getHex() === 0 && mat.side === THREE.FrontSide && mat.vertexColors !== true && !mat.userData.outlineParameters;
     const m = new THREE.Matrix4();
     const nm = new THREE.Matrix3();
     const v = new THREE.Vector3();
@@ -1084,8 +1278,10 @@ export class SceneHost {
       receive ||= mesh.receiveShadow;
       for (const gr of groups) {
         const mat = mats[gr.materialIndex] ?? mats[0];
-        let b = buckets.get(mat);
-        if (!b) buckets.set(mat, (b = { pos: [], nor: [], uv: [] }));
+        const into = colored && plain(mat) ? colored : mat;
+        let b = buckets.get(into);
+        if (!b) buckets.set(into, (b = { pos: [], nor: [], uv: [], col: [] }));
+        const c = into === colored ? mat.color : null;
         const end = Math.min(gr.start + gr.count, index ? index.count : P.count);
         for (let k = gr.start; k < end; k++) {
           const i = index ? index.getX(k) : k;
@@ -1096,6 +1292,8 @@ export class SceneHost {
           b.nor.push(v.x, v.y, v.z);
           if (U) b.uv.push(U.getX(i), U.getY(i));
           else b.uv.push(0, 0);
+          if (c) b.col.push(c.r, c.g, c.b);
+          else b.col.push(1, 1, 1);
         }
       }
     }
@@ -1108,28 +1306,37 @@ export class SceneHost {
         if (o.userData.mmBaked) {
           this.vertices -= o.geometry.attributes.position.count;
           o.geometry.dispose();
+          o.userData.mmBakedMaterial?.dispose();
         }
       });
     }
-    if (!buckets.size) return;
+    if (!buckets.size) {
+      colored?.dispose();
+      return;
+    }
     const geometry = new THREE.BufferGeometry();
     const materials = [];
     const pos = [];
     const nor = [];
     const uv = [];
+    const col = [];
     for (const [mat, b] of buckets) {
       geometry.addGroup(pos.length / 3, b.pos.length / 3, materials.length);
       materials.push(mat);
       for (const x of b.pos) pos.push(x);
       for (const x of b.nor) nor.push(x);
       for (const x of b.uv) uv.push(x);
+      for (const x of b.col) col.push(x);
     }
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     geometry.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    if (buckets.has(colored)) geometry.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    else colored?.dispose();
     this.vertices += pos.length / 3;
     const merged = new THREE.Mesh(geometry, materials);
     merged.userData.mmBaked = true;
+    if (buckets.has(colored)) merged.userData.mmBakedMaterial = colored;
     merged.castShadow = cast;
     merged.receiveShadow = receive;
     root.add(merged);
@@ -1192,6 +1399,7 @@ export class SceneHost {
       if (l.sun !== undefined) sun.color.set(color(l.sun));
       if (l.sunIntensity !== undefined) sun.intensity = num(l.sunIntensity, 0, 10, sun.intensity);
       if (l.sunPos !== undefined) sun.position.fromArray(vec3(l.sunPos, [14, 30, 10]));
+      if (l.shadows === false) sun.castShadow = false;
     }
     if (o.clouds && once('clouds')) {
       const c = o.clouds;
@@ -1208,6 +1416,31 @@ export class SceneHost {
         maxY: num(c.maxY, minY, 200, 50),
         place: spots ? (i) => spots[i] : undefined,
       });
+      // drift: [min, max]: each cloud drifts sideways (along x) at its own speed in that range,
+      // either way, coming back round at x = ±wrap (instead of the ring slowly turning); scale:
+      // [min, max] sizes them.
+      const range = (v) => (Array.isArray(v) && v.length === 2 ? [num(v[0], 0, 100, 0), num(v[1], 0, 100, 0)] : null);
+      const drift = range(c.drift);
+      const scale = range(c.scale);
+      for (const cloud of this.clouds.group.children) {
+        if (drift) cloud.userData.drift = (Math.random() < 0.5 ? -1 : 1) * (drift[0] + Math.random() * (drift[1] - drift[0]));
+        if (scale) cloud.scale.setScalar(Math.max(0.01, scale[0] + Math.random() * (scale[1] - scale[0])));
+      }
+      this.cloudWrap = drift ? num(c.wrap, 1, 1000, 80) : null;
+    }
+    if (o.backdrop && once('backdrop')) {
+      const b = o.backdrop;
+      const stops = (Array.isArray(b.stops) ? b.stops : [])
+        .filter((st) => Array.isArray(st) && Number.isFinite(st[0]) && COLOR.test(String(st[1])))
+        .slice(0, 6)
+        .map(([h, c]) => [num(h, 0, 1, 0), c]);
+      if (stops.length >= 2) {
+        const size = Array.isArray(b.size) ? b.size : [];
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(num(size[0], 10, 4000, 900), num(size[1], 10, 4000, 500)), backdropMaterial(stops, num(b.top, 0.01, 1e5, 100), Array.isArray(b.stars) ? [num(b.stars[0], 0, 1, 0), num(b.stars[1], 0, 1, 0)] : null));
+        mesh.renderOrder = -1;
+        this.scene.add(mesh);
+        this.backdrop = { mesh, z: num(b.z, -1e4, 1e4, -150) };
+      }
     }
     if (o.water && once('water')) this.water = addWater(this.scene, num(o.water.y, -1000, 1000, 0));
     if (o.stars && once('stars')) {
@@ -1298,9 +1531,25 @@ export class SceneHost {
     }
     this.particles?.update(dt);
     this.ripples?.update(dt);
-    this.clouds?.update(dt);
+    if (this.cloudWrap !== null && this.clouds) {
+      const w = this.cloudWrap;
+      for (const cloud of this.clouds.group.children) {
+        cloud.position.x += (cloud.userData.drift ?? 0) * dt;
+        if (cloud.position.x > w) cloud.position.x = -w;
+        if (cloud.position.x < -w) cloud.position.x = w;
+      }
+    } else this.clouds?.update(dt);
     this.time += dt;
     this.water?.update(this.time);
+    for (const m of this.mists) m.uniforms.uTime.value = this.time;
+    if (this.backdrop) {
+      // It stays behind the point the camera looks at, coloured by that point's height.
+      const look = this.cameraGlide?.look.position;
+      const u = this.backdrop.mesh.material.uniforms;
+      this.backdrop.mesh.position.set(look?.x ?? 0, look?.y ?? 0, this.backdrop.z);
+      u.uCamY.value = look?.y ?? 0;
+      u.uTime.value = this.time;
+    }
   }
 
   // Frees what disposeScene() leaves alone: cached shapes and colors, and the game's materials,
@@ -1313,6 +1562,10 @@ export class SceneHost {
       r.value.dispose();
     }
     this.ripples?.geo.dispose();
+    if (this.backdrop) {
+      this.backdrop.mesh.geometry.dispose();
+      this.backdrop.mesh.material.dispose();
+    }
     this.shapeCache.clear();
     this.colorCache.clear();
     this.nodes.clear();

@@ -3,6 +3,25 @@
 `npm run update` gets the latest kit and prints what changed since yours. Uploads need the
 latest kit: Mini Mosh turns down games packed with an older one, and says how to update.
 
+## v10 (October 2026)
+
+- **`['extrude', path, options]`**: a flat outline (drawn as on a canvas) pushed out into a solid,
+  with a bevel: stars, leaves, logos.
+- **`mm.bake(group, { colors: true })`**: a model in many plain colors becomes one mesh, each
+  part keeping its color: one draw call.
+- **`mm.copy(group, props)`**: another of a group built already, sharing its geometry (a lane of
+  a race for each player, built once).
+- **`mm.world({ backdrop })`**: a wall of sky behind a scene seen from the side, changing color
+  with the camera's height, with stars coming out higher up (day to night on a climb).
+- **`mm.mist({ edge, top, ... })`**: a bank of cloud with a wavy lower edge that you move, to hide
+  what's above it.
+- **Drifting clouds:** `clouds: { drift, wrap, scale }`.
+- **Labels:** `style: 'bubble'` (a pulsing "MASH! 3"), and `strong` for a bold bit after the text.
+- **Banners with a title:** `mm.hud.banner(hint, { style: 'section', title })`.
+- **`lights: { shadows: false }`** for games where nothing casts a shadow.
+- With your `place`, the tower meter and no score chips, the timer sits in the middle of the top.
+- Packages say `"kit": 10`. Uploads need kit v10: run `npm run update`.
+
 ## v9 (October 2026)
 
 - **Your place and a race track across the top:** `mm.hud.place(place, of)` shows "2nd /4" at the
