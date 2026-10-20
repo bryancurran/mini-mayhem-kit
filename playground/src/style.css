@@ -853,6 +853,26 @@ input:focus {
     var(--c);
 }
 
+/* A screenshot still loading: a soft shimmer the size of the picture (like the stats' tiles),
+   which the picture fades in over. */
+.shot-box {
+  background: linear-gradient(90deg, #f4effa 25%, #ebe3f5 50%, #f4effa 75%) 0 0 / 300% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+.shot-box img {
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+
+.shot-box.loaded {
+  animation: none;
+}
+
+.shot-box.loaded img {
+  opacity: 1;
+}
+
 /* A screenshot of the game being played, across the top (a game without one has the band in its
    color instead, as does one whose picture won't load). */
 .vc-shot {
@@ -861,7 +881,6 @@ input:focus {
   margin: 0 -16px 4px;
   overflow: hidden;
   border-bottom: 3px solid var(--line);
-  background: var(--c);
 }
 
 .vc-shot img {
@@ -869,6 +888,11 @@ input:focus {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.vc-shot.missing {
+  background: var(--c);
+  animation: none;
 }
 
 .vc-shot.missing img {
@@ -1181,6 +1205,27 @@ input:focus {
 .showcase h2 .ug-dot {
   width: 20px;
   height: 20px;
+}
+
+/* A screenshot of it being played, under its name. */
+.sc-shot {
+  aspect-ratio: 16 / 9;
+  margin: 4px 0 10px;
+  overflow: hidden;
+  border: 3px solid var(--line);
+  border-radius: 14px;
+  transition: border-color 0.25s;
+}
+
+.sc-shot:not(.loaded) {
+  border-color: #e6def0;
+}
+
+.sc-shot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .showcase h3 {
@@ -2087,6 +2132,28 @@ button.user-game {
 
 .climb-dot.done {
   opacity: 0.7;
+}
+
+/* A packaged game's HUD laid out like Sky Sprint's (a race track across the top: mm.hud.meter
+   with across) or Beanstalk Blitz's (your place at the right and no chips: the timer goes in the
+   middle). */
+.hud-top.racing {
+  justify-content: flex-start;
+}
+
+.hud-top.racing .hud-chips:empty,
+.hud-top.placed .hud-chips:empty {
+  display: none;
+}
+
+.hud-top.placed:not(.racing):has(.hud-chips:empty) {
+  justify-content: center;
+}
+
+.hud-top.placed:not(.racing):has(.hud-chips:empty) .race-place {
+  position: absolute;
+  right: 0;
+  top: 0;
 }
 
 .hud-banner.section {
@@ -3863,7 +3930,8 @@ button.user-game {
   .sg-bar i,
   .stat-game,
   .stat-streak,
-  .stat-tiles.loading .stat-tile {
+  .stat-tiles.loading .stat-tile,
+  .shot-box {
     animation: none;
   }
 }
@@ -4418,6 +4486,14 @@ body:has(.tap-controls) .race-top {
     font-size: 24px;
   }
 
+  /* (Smaller, with what's under it beside it, so the strip still shows what the game is about.) */
+  .sc-shot {
+    float: left;
+    width: 44%;
+    margin: 2px 12px 6px 0;
+    border-radius: 10px;
+  }
+
   .sc-tagline {
     font-size: 16px;
   }
@@ -4427,6 +4503,7 @@ body:has(.tap-controls) .race-top {
   }
 
   .showcase h3 {
+    clear: both;
     margin-top: 10px;
   }
 
@@ -4450,6 +4527,10 @@ body:has(.tap-controls) .race-top {
     top: 10px;
     left: 10px;
     right: 10px;
+    gap: 8px;
+  }
+
+  .hud-top.racing {
     gap: 8px;
   }
 

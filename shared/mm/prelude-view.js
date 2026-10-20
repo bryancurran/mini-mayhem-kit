@@ -20,6 +20,7 @@
   const placed = new Map(); // instances node id -> Map(copy -> properties changed this frame)
   let camera = null;
   let lastControls = null; // mm.controls as last sent
+  let lastSun = null; // mm.sun as last sent
   const hudLast = {}; // last value sent per HUD part, so unchanged ones aren't resent
   let nextId = 1;
 
@@ -253,6 +254,16 @@
     world(options) {
       out.push(['world', options || {}]);
     },
+    // Moves the sun: { pos, target } (where it shines from, and the middle of the area its
+    // shadows cover), for a scene bigger than mm.world's shadowSize: keep it on the action. Sent
+    // only when it changes.
+    sun(options) {
+      const o = pack(options);
+      const text = JSON.stringify(o);
+      if (text === lastSun) return;
+      lastSun = text;
+      out.push(['sun', o]);
+    },
     camera(options) {
       camera = Object.assign(camera || {}, pack(options));
     },
@@ -299,9 +310,14 @@
         if (typeof o.progress === 'number') o.progress = Math.round(Math.max(0, Math.min(1, o.progress)) * 1000) / 1000;
         send('callout', o);
       },
-      // A vertical race track: { icon, values: [0..1 per player], stops: [colors] }.
+      // A race track: { icon, values: [0..1 per player], stops: [colors], done: [players],
+      // across }: down the right edge, or along the top with across: true.
       meter(options) {
         send('meter', options);
+      },
+      // Your place ("2nd" of 4) at the top right, or null to hide it.
+      place(place, of) {
+        send('place', typeof place === 'number' && Number.isFinite(place) ? { place: Math.round(place), of: typeof of === 'number' ? Math.round(of) : null } : null);
       },
       center(text, options) {
         out.push(['hud', 'center', text, options || {}]);

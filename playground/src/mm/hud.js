@@ -1,9 +1,10 @@
 import { isTouchDevice } from '../input.js';
 import { sfx } from '../sfx.js';
+import { ordinal } from '../util.js';
 
 // The HUD parts a packaged minigame can use (mm.hud in the sandbox), built from the same
-// elements and styles as every other game: score chips, the timer, a race meter, the big
-// center pop, the banner, and a typing game's text box. Everything the game passes in is
+// elements and styles as every other game: score chips, the timer, a race meter, your place, the
+// big center pop, the banner, and a typing game's text box. Everything the game passes in is
 // checked and only ever used as text, never as HTML.
 
 const COLOR = /^#[0-9a-f]{3,8}$/i;
@@ -44,6 +45,7 @@ export class Hud {
     this.chips = null;
     this.outList = [];
     this.meterDots = null;
+    this.placeEl = null;
     this.lastSecond = null;
     this.typeForm = null;
     this.typeOptions = { show: true, placeholder: '' }; // as the game last set them
@@ -64,6 +66,7 @@ export class Hud {
     else if (part === 'cooldown') this.cooldown(a);
     else if (part === 'status') this.status(a);
     else if (part === 'callout') this.callout(a);
+    else if (part === 'place') this.place(a);
   }
 
   scores(values) {
@@ -192,9 +195,52 @@ export class Hud {
     el.classList.toggle('sinking', o.flash === true);
   }
 
-  // { icon, values: [0..1 per player], stops: ['#hex' | ['#hex', percent]] }
+  // Your place in the race ("2nd /4") at the top right: { place, of }, or null to hide it. Without
+  // a race track across the top or score chips, the timer moves to the middle (Beanstalk Blitz).
+  place(o) {
+    const place = o && typeof o === 'object' && Number.isInteger(o.place) && o.place > 0 ? Math.min(99, o.place) : null;
+    if (!this.placeEl) {
+      if (place === null) return;
+      const el = (this.placeEl = document.createElement('div'));
+      el.className = 'race-place';
+      el.innerHTML = '<span class="race-place-value"></span><span class="race-place-of"></span>';
+      const top = this.el.querySelector('.hud-top');
+      top.appendChild(el);
+      top.classList.add('placed');
+    }
+    this.placeEl.hidden = place === null;
+    if (place === null) return;
+    const value = ordinal(place);
+    const of = Number.isInteger(o.of) && o.of > 0 ? `/${Math.min(99, o.of)}` : '';
+    const v = this.placeEl.querySelector('.race-place-value');
+    const n = this.placeEl.querySelector('.race-place-of');
+    if (v.textContent !== value) v.textContent = value;
+    if (n.textContent !== of) n.textContent = of;
+  }
+
+  // { icon, values: [0..1 per player], stops: ['#hex' | ['#hex', percent]], done: [players],
+  // across }: a tower down the right edge, or with across: true a track along the top (Sky
+  // Sprint), the icon at its far end. Players in done are dimmed.
   meter(options) {
     if (!options || typeof options !== 'object') return;
+    if (!this.meterDots && options.across === true) {
+      const bar = document.createElement('div');
+      bar.className = 'race-progress';
+      bar.innerHTML = '<div class="race-track"></div><span class="race-flag"></span>';
+      bar.querySelector('.race-flag').textContent = str(options.icon, 4);
+      const track = bar.querySelector('.race-track');
+      this.meterDots = this.players.map((p) => {
+        const dot = document.createElement('span');
+        dot.className = `race-dot${p.me ? ' me' : ''}`;
+        dot.style.setProperty('--c', p.color);
+        track.appendChild(dot);
+        return dot;
+      });
+      this.meterAcross = true;
+      const top = this.el.querySelector('.hud-top');
+      top.insertBefore(bar, this.timerEl);
+      top.classList.add('racing');
+    }
     if (!this.meterDots) {
       const tower = document.createElement('div');
       tower.className = 'climb-tower';
@@ -217,9 +263,12 @@ export class Hud {
       this.el.appendChild(tower);
     }
     const values = Array.isArray(options.values) ? options.values : [];
+    const done = Array.isArray(options.done) ? options.done : [];
     this.meterDots.forEach((dot, i) => {
       const v = Number.isFinite(values[i]) ? Math.max(0, Math.min(1, values[i])) : 0;
-      dot.style.bottom = `${v * 100}%`;
+      if (this.meterAcross) dot.style.left = `${v * 100}%`;
+      else dot.style.bottom = `${v * 100}%`;
+      dot.classList.toggle('done', done.includes(i));
     });
   }
 

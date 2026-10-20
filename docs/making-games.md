@@ -384,7 +384,7 @@ Labels: `style: 'tag'` is a name tag in the player's `color`, `'me'` the same ta
 
 ```js
 mm.material({ color, texture, repeat: [u, v], opacity, transparent, depthWrite, side: 'double', emissive, unlit, outline, blending: 'add' })
-mm.texture(width, height, (g, w, h) => { g.fillStyle = '#f00'; g.fillRect(0, 0, w, h); }, { repeat: true, pixelated: false })
+mm.texture(width, height, (g, w, h) => { g.fillStyle = '#f00'; g.fillRect(0, 0, w, h); }, { repeat: true, pixelated: false, anisotropy: 4 })
 mm.geometry({ positions, ... })
 mm.bake(group)
 ```
@@ -405,6 +405,8 @@ mm.bake(group)
     `strokeText`.
   - State: `save`, `restore`, `translate`, `rotate` and `scale`.
   - Gradients from `createLinearGradient` and `createRadialGradient`.
+  - `anisotropy` (1-16, 4 by default): how crisp it stays seen at a low angle. 8 for a checkered
+    floor stretching away from a chase camera.
 - **`mm.bake(group)`:** merges every mesh under the group into one mesh per material and
   removes the nodes that were under it. Use it for anything big that stops changing: a tall
   sandwich is a handful of draw calls instead of hundreds.
@@ -412,7 +414,8 @@ mm.bake(group)
 ### World, camera, effects, sound
 
 ```js
-mm.world({ sky: true, lights: { shadowSize, sky, ground, ambient, sun, sunIntensity, sunPos }, clouds: { count, minRadius, maxRadius, minY, maxY }, water: { y }, stars: { count, radius, size, color }, background: '#hex', fog: ['#hex', near, far] })
+mm.world({ sky: true, lights: { shadowSize, sky, ground, ambient, sun, sunIntensity, sunPos }, clouds: { count, minRadius, maxRadius, minY, maxY, spots }, water: { y }, stars: { count, radius, size, color }, background: '#hex', fog: ['#hex', near, far] })
+mm.sun({ pos, target })
 mm.camera({ pos, look, fov, safe, snap, smooth })
 mm.burst({ pos, count, speed, up, life, size, gravity, colors })
 mm.ripple({ pos, size, life })
@@ -426,6 +429,13 @@ mm.sound(name, ...numbers)
   (`sunIntensity`, 2.2) and place (`sunPos`, `[14, 30, 10]`), for a night or a sunset.
 - `stars`: points of light all round, above the horizon, the same size however far (`count`
   500, `radius` 150, `size` 1.4 px), for a night sky (with a dark `background`).
+- `clouds`: puffy clouds in a slow ring round the middle, or `spots: [[x, y, z], ...]` (up to 60)
+  to put each one where you want it (all along a race course).
+- `mm.sun`: the sun's shadows only cover `shadowSize` either side of the point it shines at (the
+  middle of the scene). For a world bigger than that (a long course with a chase camera), move
+  the sun along with the action every frame: `pos` is where it shines from and `target` the
+  point it shines at (keep the same offset between them, `[14, 30, 10]` by default). Sent only
+  when it changes.
 - `mm.camera`: `fov` is the vertical field of view in degrees. With `safe: true`, the picture is
   framed on the part of the screen the HUD leaves free (`view.screen.safe`): the camera looks at
   the middle of that area and `fov` spans its height, while the scene still shows behind the
@@ -450,7 +460,8 @@ mm.hud.timer(secondsLeft, { label, urgent, seconds })    // or null to hide; tic
 mm.hud.cooldown(ready)                                   // 0 (just used) to 1 (ready): how ready the a button is
 mm.hud.status('Round 3/12')                              // a short line in a pill beside the timer; null hides it
 mm.hud.callout({ text, color, icon, progress, flash })   // the big call of the moment ("RED!"); null hides it
-mm.hud.meter({ icon: '🥪', values: [0..1 per player], stops: ['#hex', ['#hex', 40], ...] })
+mm.hud.meter({ icon: '🥪', values: [0..1 per player], stops: ['#hex', ['#hex', 40], ...], done: [2], across })
+mm.hud.place(2, 4)                                       // your place: "2nd /4" at the top right; null hides it
 mm.hud.center('YOU WIN!', { style: 'count' | 'go' | 'bad' | 'big', ms })   // ms: 0 keeps it up
 mm.hud.banner('Text', { style: 'info' | 'warn', ms })
 mm.hud.textbox({ show, placeholder })                    // typing games: the text box; false hides it
@@ -463,6 +474,12 @@ mm.hud.textbox({ show, placeholder })                    // typing games: the te
   fills up around its edge and turns yellow once it's ready; on a keyboard or gamepad a meter
   labelled like the touch button (`touchLabel`) shows above the controls hint. Without it, the
   touch button is always yellow.
+- `mm.hud.meter`: a race track with a dot for each player, yours bigger, from 0 (the start) to 1
+  (the `icon`, at the far end). Down the right edge, colored by `stops` (Sandwich Stack's tower),
+  or with `across: true` along the top (Sky Sprint's course, the icon a 🏁). Players in `done`
+  are dimmed (they've finished).
+- `mm.hud.place`: where you are in the race right now, at the top right (leave it out for
+  spectators).
 - `mm.hud.callout`: a card with `text` (up to 24 characters) in `color`, an `icon` (a symbol or
   emoji) in a swatch of that color, and a bar below that runs down as `progress` goes from 1 to 0
   (leave it out for no bar). `flash: true` makes it blink (time's up). It pops in whenever its
@@ -474,7 +491,8 @@ people who joined mid-game, the whistle at the end and the results screen.
 
 Where things sit:
 - **Along the top:** the score chips (top left), the timer (top right) and the status pill just
-  before it. With many players on a phone, the chips wrap onto two or three rows.
+  before it. With many players on a phone, the chips wrap onto two or three rows. A meter
+  `across` the top goes first, the timer just after it, and your `place` at the far right.
 - **Along the bottom:** the controls hint, plus the touch controls on phones (the DASH button or
   side buttons in the bottom corners). The meter runs down the right edge.
 - **Banners:** below the chips on wide screens, and above the bottom controls on phones.

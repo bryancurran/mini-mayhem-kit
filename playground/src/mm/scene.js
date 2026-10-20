@@ -40,6 +40,7 @@ const LIMITS = {
   crowd: 2000, // little Moshes across every mm.crowd
   linePoints: 2000,
   stars: 2000,
+  clouds: 60, // placed with spots
 };
 const COLOR = /^#[0-9a-f]{3,8}$/i;
 // Properties packed by the sandbox's drawing kit (pack in prelude-view.js) carry the numbers in
@@ -414,6 +415,7 @@ export class SceneHost {
     this.particles = null;
     this.ripples = null;
     this.clouds = null;
+    this.sun = null; // the sun from mm.world({ lights })
     this.water = null;
     this.time = 0; // seconds since the game's first frame (the water's waves)
     this.badCount = 0;
@@ -457,7 +459,7 @@ export class SceneHost {
         const [op, a, b, d, e, f] = c;
         if (op === 'new') unfix(d);
         else if (op === 'set' || op === 'rset' || op === 'mat' || op === 'ibulk' || op === 'cbulk') unfix(b);
-        else if (op === 'camera' || op === 'burst' || op === 'ripple') unfix(a);
+        else if (op === 'camera' || op === 'burst' || op === 'ripple' || op === 'sun') unfix(a);
         else if (op === 'inst' && Array.isArray(b)) for (const entry of b) if (Array.isArray(entry)) unfix(entry[1]);
         if (op === 'new') this.create(a, b, d ?? {});
         else if (op === 'set') this.update(this.node(a), b ?? {});
@@ -474,6 +476,7 @@ export class SceneHost {
         else if (op === 'bake') this.bake(a);
         else if (op === 'camera') this.setCamera(a ?? {});
         else if (op === 'world') this.world(a ?? {});
+        else if (op === 'sun') this.moveSun(a ?? {});
         else if (op === 'burst') this.burst(a ?? {});
         else if (op === 'ripple') this.ripple(a ?? {});
         else if (op === 'sound') {
@@ -991,7 +994,8 @@ export class SceneHost {
     tex.colorSpace = THREE.SRGBColorSpace;
     if (options?.repeat !== false) tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     if (options?.pixelated === true) tex.magFilter = THREE.NearestFilter;
-    tex.anisotropy = 4;
+    // How sharp it stays seen at a low angle (a floor stretching away).
+    tex.anisotropy = Math.round(num(options?.anisotropy, 1, 16, 4));
     this.textures++;
     return tex;
   }
@@ -1178,6 +1182,7 @@ export class SceneHost {
     if (o.lights && once('lights')) {
       const l = o.lights;
       const sun = addLights(this.scene, { shadowSize: num(l.shadowSize, 4, 200, 20) });
+      this.sun = sun;
       // Moods other than daylight: the sky and ground light, and the sun's color, strength and
       // place (relative to the middle of the scene).
       const hemi = this.scene.children.find((c) => c.isHemisphereLight);
@@ -1192,12 +1197,16 @@ export class SceneHost {
       const c = o.clouds;
       const minRadius = num(c.minRadius, 0, 400, 70);
       const minY = num(c.minY, -100, 200, 8);
+      // spots: [[x, y, z], ...] puts each cloud where the game says (along a course, say)
+      // instead of in a ring.
+      const spots = Array.isArray(c.spots) ? c.spots.slice(0, LIMITS.clouds).map((v) => new THREE.Vector3().fromArray(vec3(v, [0, 20, 0]))) : null;
       this.clouds = addClouds(this.scene, {
-        count: Math.round(num(c.count, 0, 40, 14)),
+        count: spots ? spots.length : Math.round(num(c.count, 0, 40, 14)),
         minRadius,
         maxRadius: num(c.maxRadius, minRadius, 400, 170),
         minY,
         maxY: num(c.maxY, minY, 200, 50),
+        place: spots ? (i) => spots[i] : undefined,
       });
     }
     if (o.water && once('water')) this.water = addWater(this.scene, num(o.water.y, -1000, 1000, 0));
@@ -1218,6 +1227,14 @@ export class SceneHost {
     }
     if (o.background !== undefined && once('background')) this.scene.background = new THREE.Color(color(o.background));
     if (Array.isArray(o.fog) && once('fog')) this.scene.fog = new THREE.Fog(color(o.fog[0]), num(o.fog[1], 0, 1e4, 50), num(o.fog[2], 0, 1e4, 300));
+  }
+
+  // mm.sun({ pos, target }): moves the sun and the middle of its shadows, for a scene bigger than
+  // its shadow box (keep it on the action). Without mm.world({ lights }) there's no sun to move.
+  moveSun(o) {
+    if (!this.sun) return;
+    if (o.pos !== undefined) this.sun.position.fromArray(vec3(o.pos, [14, 30, 10]));
+    if (o.target !== undefined) this.sun.target.position.fromArray(vec3(o.target, [0, 0, 0]));
   }
 
   burst(o) {

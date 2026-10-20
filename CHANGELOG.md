@@ -3,6 +3,20 @@
 `npm run update` gets the latest kit and prints what changed since yours. Uploads need the
 latest kit: Mini Mosh turns down games packed with an older one, and says how to update.
 
+## v9 (October 2026)
+
+- **Your place and a race track across the top:** `mm.hud.place(place, of)` shows "2nd /4" at the
+  top right, and `mm.hud.meter({ across: true, icon, values })` runs a race's progress along the
+  top instead of down the right edge (Sky Sprint). `done: [players]` dims the ones who've finished,
+  on either meter.
+- **`mm.sun({ pos, target })`** moves the sun and the area its shadows cover, for a world bigger
+  than `shadowSize`: keep it on the action (a chase camera along a long course).
+- **Clouds where you want them:** `mm.world({ clouds: { spots: [[x, y, z], ...] } })`, up to 60
+  (along a course, say).
+- **Sharper floors far away:** `mm.texture(..., { anisotropy: 8 })` keeps a texture crisp seen at a
+  low angle (1-16, 4 by default).
+- Packages say `"kit": 9`. Uploads need kit v9: run `npm run update`.
+
 ## v8 (October 2026)
 
 - **Your own moves show the frame you press.** The controls stamped each press with the game
