@@ -121,7 +121,7 @@ delete it, so the kit needs to be signed in to it (`npm run login`, which keeps 
 ```
 AGENTS.md                instructions for coding agents
 docs/making-games.md     the full guide and API reference
-docs/style-guide.md      the house style, so games fit in next to the official ones
+docs/style-guide.md      the house style, so games fit in next to the standard ones
 examples/                Coin Dash (small), Sandwich Stack (a full game) and Word Rush (typing)
 templates/starter/       what npm run new copies
 games/                   your games (git ignores them; submit with npm run upload)

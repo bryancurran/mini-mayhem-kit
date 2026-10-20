@@ -98,11 +98,13 @@ export class Avatar {
     this.body.scale.set(1, 1.05, 0.95);
     mesh(geo.belly, shared.belly, 0, 0.4, 0.27, this.torso).scale.set(1, 0.95, 0.6);
 
+    this.eyes = []; // (hidden behind dark glasses, so they don't show round their sides)
     for (const side of [-1, 1]) {
       const eye = mesh(geo.eye, shared.white, side * 0.21, 0.76, 0.47, this.torso);
       eye.scale.set(1, 1.3, 0.6);
-      mesh(geo.pupil, shared.pupil, side * 0.2, 0.75, 0.55, this.torso).scale.set(1, 1.35, 0.6);
-      mesh(geo.shine, shared.white, side * 0.18, 0.81, 0.6, this.torso);
+      const pupil = mesh(geo.pupil, shared.pupil, side * 0.2, 0.75, 0.55, this.torso);
+      pupil.scale.set(1, 1.35, 0.6);
+      this.eyes.push(eye, pupil, mesh(geo.shine, shared.white, side * 0.18, 0.81, 0.6, this.torso));
       mesh(geo.cheek, shared.cheek, side * 0.4, 0.57, 0.43, this.torso).scale.set(1.2, 0.8, 0.5);
     }
 
@@ -167,10 +169,12 @@ export class Avatar {
       if (item.fit) item.obj.traverse((o) => o.material?.userData.stalk && (o.material = this.darkMat)); // an antenna's stalks, like its own
       this.worn.set(item.slot, { id, ...item });
     }
-    // An antenna from the shop takes the place of its own.
+    // An antenna from the shop takes the place of its own, and dark glasses hide its eyes.
     const own = !this.worn.has('antenna');
     this.stalk.visible = own;
     this.bobble.visible = own;
+    const shaded = [...this.worn.values()].some((w) => w.hidesEyes);
+    for (const e of this.eyes) e.visible = !shaded;
     this.fitHead();
   }
 

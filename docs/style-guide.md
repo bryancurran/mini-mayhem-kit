@@ -1,6 +1,6 @@
 # Mini Mosh style guide
 
-How the official games look, move, sound and read, with the numbers they use. Follow it and a
+How the standard games look, move, sound and read, with the numbers they use. Follow it and a
 game made with the creator kit fits in next to them. `docs/making-games.md` has the API itself;
 `examples/` has games that follow this guide (Coin Dash is small, Sandwich Stack is a full game).
 

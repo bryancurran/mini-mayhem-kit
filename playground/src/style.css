@@ -57,7 +57,7 @@ button,
 }
 
 /* While a round is on (main.js), nothing on the page can be selected or long-pressed into a menu,
-   whatever drew it (the HUD, name tags over the Moshes, a player-made game's buttons). Text
+   whatever drew it (the HUD, name tags over the Moshes, a user-created game's buttons). Text
    boxes still work: a typing game's, and the notes on the results. */
 body.playing,
 body.playing * {
@@ -571,7 +571,7 @@ input:focus {
   box-shadow: none;
 }
 
-/* Official / User created tabs on the lobby's game card. */
+/* Standard / User created tabs on the lobby's game card. */
 .game-tabs {
   display: flex;
   gap: 6px;
@@ -594,7 +594,7 @@ input:focus {
   cursor: pointer;
 }
 
-/* All, Official, User created: a little tighter to fit side by side. */
+/* All, Standard, User created: a little tighter to fit side by side. */
 .game-tab:first-child:nth-last-child(3),
 .game-tab:first-child:nth-last-child(3) ~ .game-tab {
   padding: 5px 6px;
@@ -2814,7 +2814,7 @@ button.user-game {
   }
 }
 
-/* After a player-made game: the player's notes on it (notes.js), and Done (see ui.js showResults). */
+/* After a user-created game: the player's notes on it (notes.js), and Done (see ui.js showResults). */
 .results-card.with-notes {
   width: min(480px, 100%);
 }

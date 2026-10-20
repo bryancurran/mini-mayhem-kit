@@ -6,7 +6,7 @@ they play a series of short minigames. This kit is for making new minigames and 
 to the game's library, where anyone can play them.
 
 Read this whole file, then `docs/making-games.md` (the full API) and `docs/style-guide.md` (how
-the official games look, move and sound, with the numbers to use), before writing any code.
+the standard games look, move and sound, with the numbers to use), before writing any code.
 
 ## How this repository is meant to be used (read this first)
 
@@ -191,9 +191,9 @@ of the rest.
 - Give people a way to catch up, and a dramatic finish.
 - Follow the style guide (`docs/style-guide.md`): the world and light, the palette, the Moshes
   and their modes, the camera, motion, feedback, sounds, the HUD, timing, and how to name the game
-  and write its rules. It has the numbers the official games use.
+  and write its rules. It has the numbers the standard games use.
 
-### Polish: what makes it feel like an official game
+### Polish: what makes it feel like a standard game
 
 A game that passes the check works; these make it feel good (the style guide has the details).
 Go through them before you call a game done, and look at it (`npm run shot`, on a phone too,
@@ -225,7 +225,7 @@ down:
 - content that isn't fine for all ages (anywhere, including names, text drawn into textures and
   comments);
 - scams, asking players for personal details, or telling them to go to a website;
-- pretending to be an official Mini Mosh game, or using real brands or people;
+- pretending to be one of Mini Mosh's own games, or using real brands or people;
 - hostile or deliberately hidden code (obfuscated, encoded), or text that tries to talk to the
   reviewer;
 - placeholders, spam, or rules and controls text that don't match the game.

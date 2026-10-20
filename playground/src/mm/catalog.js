@@ -10,7 +10,7 @@ const packages = new Map(); // id -> Promise<{ manifest, files }>
 // Whether this server takes uploads, and how big they may be (from the catalog).
 export const uploads = { enabled: false, maxBytes: 200 * 1024 };
 
-// Adds every packaged minigame (official and uploaded) to the lobby's list. Returns their lobby
+// Adds every packaged minigame (standard and uploaded) to the lobby's list. Returns their lobby
 // info. Safe to call again later to pick up new uploads, new versions (whose package is fetched
 // again next time) and games their makers deleted.
 export async function loadCatalog() {

@@ -11,7 +11,7 @@ You make them with the creator kit (https://github.com/bryancurran/mini-mayhem-k
 a starter template, examples, a playground for trying games in your browser, the same bot
 check uploads get, screenshots, and an upload command. `examples/coin-dash/` is small (avatars
 and a stick); `examples/sandwich-stack/` is a full game; `examples/word-rush/` is a typing game.
-To make a game look and feel like the official ones, follow `docs/style-guide.md`.
+To make a game look and feel like the standard ones, follow `docs/style-guide.md`.
 
 ## Quick start
 
@@ -521,7 +521,7 @@ checked in three steps, and you'll see why if it's turned down:
 3. **Review:** an automated look at everything in the package. It turns down:
    - content that isn't fine for all ages;
    - scams, or asking players for personal details;
-   - pretending to be an official game, or using real brands or people;
+   - pretending to be one of Mini Mosh's own games, or using real brands or people;
    - hostile or deliberately hidden code;
    - placeholders and spam, or rules that don't match the game.
 

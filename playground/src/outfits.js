@@ -317,10 +317,12 @@ const ITEMS = {
   },
 
   shades: {
+    hidesEyes: true, // dark lenses: its eyes would only peek out round their sides
     build(g) {
       // No cartoon outline: they're black already, and on the frame's flat edges it would float off them.
-      const lens = noOutline(mat('#0b0910'));
-      const frame = noOutline(mat('#1c1722'));
+      // (Both sides drawn, so the inside of each lens hole always shows.)
+      const lens = noOutline(mat('#0b0910', { side: THREE.DoubleSide }));
+      const frame = noOutline(mat('#1c1722', { side: THREE.DoubleSide }));
       const glint = shared(noOutline(new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.22, depthWrite: false })));
       const p = new Parts(g);
       // Classic wayfarers: a black lens over each eye, wide and straight along the top, sweeping up
@@ -353,17 +355,18 @@ const ITEMS = {
         const rim = rounded(flip(RIM));
         rim.holes.push(rounded(flip(LENS)));
         p.add(new THREE.ExtrudeGeometry(rim, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 2, curveSegments: 6 }).translate(0, 0, -0.02).applyMatrix4(place), frame);
-        // The lens, a little bigger than its hole so the frame covers its edge, set back in it.
-        p.add(new THREE.ExtrudeGeometry(rounded(flip(LENS.map(([x, y, r]) => [x * 1.06, y * 1.06 + 0.002, r]))), { depth: 0.012, bevelEnabled: false, curveSegments: 6 }).translate(0, 0, -0.016).applyMatrix4(place), lens);
+        // The lens, a little bigger than its hole so the frame covers its edge, filling it almost to
+        // the front.
+        p.add(new THREE.ExtrudeGeometry(rounded(flip(LENS.map(([x, y, r]) => [x * 1.06, y * 1.06 + 0.002, r]))), { depth: 0.03, bevelEnabled: false, curveSegments: 6 }).translate(0, 0, -0.022).applyMatrix4(place), lens);
         // A faint glint across the top inside corner of the lens, a thick stripe and a thin one.
         for (const [x, width, tall] of [[-0.075, 0.024, 0.12], [-0.035, 0.01, 0.09]]) {
-          p.add(new THREE.BoxGeometry(width, tall, 0.003).rotateZ(side * -0.6).translate(side * x, 0.04, 0).applyMatrix4(place), glint);
+          p.add(new THREE.BoxGeometry(width, tall, 0.003).rotateZ(side * -0.6).translate(side * x, 0.04, 0.011).applyMatrix4(place), glint);
         }
         // The arm, from the top outer corner back to the ear.
-        p.bar(on(0.245, 0.16, -0.01), [side * 0.575, 0.86, 0.12], 0.026, frame);
+        p.bar(on(0.245, 0.16, -0.01), [side * 0.575, 0.86, 0.12], 0.034, frame);
       }
       // The bridge across the top of the nose.
-      p.bar([-0.035, 0.93, 0.682], [0.035, 0.93, 0.682], 0.026, frame);
+      p.bar([-0.035, 0.93, 0.682], [0.035, 0.93, 0.682], 0.034, frame);
       p.done();
       g.traverse((o) => o.material === glint && (o.castShadow = false)); // (its shadow on the lens would look like a second glint)
     },
@@ -602,7 +605,7 @@ const shoe = (item, side) => (g) => {
 };
 
 // A new copy of the item for one Mosh: { obj (on its torso) or feet ([left, right]), slot, lift,
-// top, crowned, animate, fit (an antenna's) }.
+// top, crowned, animate, fit (an antenna's), hidesEyes }.
 export function makeItem(id) {
   const item = ITEMS[id];
   if (!item) return null;
@@ -615,5 +618,6 @@ export function makeItem(id) {
     crowned: item.crowned ?? null,
     animate: item.animate ?? null,
     fit: item.antenna ? (obj, cover) => fitMasts(obj, Math.max(0, cover + 0.02 - item.base)) : null,
+    hidesEyes: item.hidesEyes ?? false,
   };
 }

@@ -144,9 +144,9 @@ export function parsePackage(textContent) {
 export const platformsOf = (manifest) => (manifest.input.text ? ['pc', 'mobile'] : PLATFORMS);
 
 // What the lobby needs to list a packaged minigame (same shape as shared/minigames.js entries).
-// source is 'official' (in the repo's games/ folder) or 'user' (uploaded by a player); version
+// source is 'standard' (in the repo's games/ folder) or 'user' (uploaded by a player); version
 // changes whenever the package does, so browsers know to fetch it again.
-export function lobbyInfo(manifest, { source = 'official', by, uploadedAt, updatedAt, version } = {}) {
+export function lobbyInfo(manifest, { source = 'standard', by, uploadedAt, updatedAt, version } = {}) {
   const { id, name, color, tagline, rules, controls } = manifest;
   return {
     id,
