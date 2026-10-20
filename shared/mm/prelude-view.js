@@ -162,6 +162,7 @@
   const CANVAS_METHODS = [
     'fillRect', 'strokeRect', 'clearRect', 'beginPath', 'closePath', 'moveTo', 'lineTo', 'quadraticCurveTo', 'bezierCurveTo',
     'arc', 'arcTo', 'ellipse', 'rect', 'fill', 'stroke', 'save', 'restore', 'translate', 'rotate', 'scale', 'fillText', 'strokeText',
+    'roundRect', 'setLineDash',
   ];
   function Recorder(width, height) {
     this.width = width;

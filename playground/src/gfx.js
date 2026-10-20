@@ -60,9 +60,11 @@ export function addSky(scene) {
   return sky;
 }
 
-export function addLights(scene, { shadowSize = 20, target = new THREE.Vector3() } = {}) {
-  scene.add(new THREE.HemisphereLight('#ffffff', '#8fb6d9', 1.6));
-  const sun = new THREE.DirectionalLight('#fff6e0', 2.2);
+// Daylight: light from the sky and ground all round, and the sun (which casts the shadows). The
+// colors and strengths can be changed (moonlight, say).
+export function addLights(scene, { shadowSize = 20, target = new THREE.Vector3(), sky = '#ffffff', ground = '#8fb6d9', ambient = 1.6, sunColor = '#fff6e0', sunlight = 2.2 } = {}) {
+  scene.add(new THREE.HemisphereLight(sky, ground, ambient));
+  const sun = new THREE.DirectionalLight(sunColor, sunlight);
   sun.position.set(target.x + 14, target.y + 30, target.z + 10);
   sun.target.position.copy(target);
   sun.castShadow = true;
@@ -82,9 +84,9 @@ export function addLights(scene, { shadowSize = 20, target = new THREE.Vector3()
 
 // Puffy clouds drifting in a slow circle around the origin. Pass place(i) to position them
 // yourself instead.
-export function addClouds(scene, { count = 14, minRadius = 70, maxRadius = 170, minY = 8, maxY = 50, place } = {}) {
+export function addClouds(scene, { count = 14, minRadius = 70, maxRadius = 170, minY = 8, maxY = 50, place, color = '#ffffff' } = {}) {
   const group = new THREE.Group();
-  const mat = toon('#ffffff');
+  const mat = toon(color);
   const puff = new THREE.SphereGeometry(1, 14, 10);
   for (let i = 0; i < count; i++) {
     const cloud = new THREE.Group();

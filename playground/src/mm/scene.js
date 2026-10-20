@@ -70,6 +70,7 @@ const CANVAS_PROPS = new Set(['fillStyle', 'strokeStyle', 'lineWidth', 'globalAl
 const CANVAS_METHODS = new Set([
   'fillRect', 'strokeRect', 'clearRect', 'beginPath', 'closePath', 'moveTo', 'lineTo', 'quadraticCurveTo', 'bezierCurveTo',
   'arc', 'arcTo', 'ellipse', 'rect', 'fill', 'stroke', 'save', 'restore', 'translate', 'rotate', 'scale', 'fillText', 'strokeText',
+  'roundRect', 'setLineDash',
 ]);
 
 class BadCommand extends Error {}
@@ -135,16 +136,27 @@ function shapeGeometry(s) {
       const path = p[0];
       const o = p[1] && typeof p[1] === 'object' && !Array.isArray(p[1]) ? p[1] : {};
       if (!Array.isArray(path) || path.length < 2 || path.length > LIMITS.extrudeCommands) throw new BadCommand(`extrude: a list of 2-${LIMITS.extrudeCommands} path commands`);
-      const outline = new THREE.Shape();
-      for (const c of path) {
-        if (!Array.isArray(c)) throw new BadCommand('extrude: commands are like ["lineTo", x, y]');
-        const [op, ...a] = c;
-        const v = (i) => num(a[i], -1e4, 1e4, 0);
-        if (op === 'moveTo') outline.moveTo(v(0), v(1));
-        else if (op === 'lineTo') outline.lineTo(v(0), v(1));
-        else if (op === 'quadraticCurveTo') outline.quadraticCurveTo(v(0), v(1), v(2), v(3));
-        else if (op === 'bezierCurveTo') outline.bezierCurveTo(v(0), v(1), v(2), v(3), v(4), v(5));
-        else throw new BadCommand('extrude: moveTo, lineTo, quadraticCurveTo or bezierCurveTo');
+      const draw = (into, commands) => {
+        for (const c of commands) {
+          if (!Array.isArray(c)) throw new BadCommand('extrude: commands are like ["lineTo", x, y]');
+          const [op, ...a] = c;
+          const v = (i) => num(a[i], -1e4, 1e4, 0);
+          if (op === 'moveTo') into.moveTo(v(0), v(1));
+          else if (op === 'lineTo') into.lineTo(v(0), v(1));
+          else if (op === 'quadraticCurveTo') into.quadraticCurveTo(v(0), v(1), v(2), v(3));
+          else if (op === 'bezierCurveTo') into.bezierCurveTo(v(0), v(1), v(2), v(3), v(4), v(5));
+          else throw new BadCommand('extrude: moveTo, lineTo, quadraticCurveTo or bezierCurveTo');
+        }
+        return into;
+      };
+      const outline = draw(new THREE.Shape(), path);
+      // holes: outlines cut out of it (windows in a wall), each a list of commands.
+      const holes = Array.isArray(o.holes) ? o.holes : [];
+      if (holes.length > 64) throw new BadCommand('extrude: at most 64 holes');
+      let commands = path.length;
+      for (const hole of holes) {
+        if (!Array.isArray(hole) || (commands += hole.length) > LIMITS.extrudeCommands) throw new BadCommand(`extrude: a hole is a list of commands (${LIMITS.extrudeCommands} in all)`);
+        outline.holes.push(draw(new THREE.Path(), hole));
       }
       return new THREE.ExtrudeGeometry(outline, {
         depth: num(o.depth, 0, 1e4, 1),
@@ -777,6 +789,8 @@ export class SceneHost {
         o.castShadow = s === true || s === 'cast';
         o.receiveShadow = s === true || s === 'receive';
       }
+      // order: among see-through things, higher ones are drawn later, on top (a shadow on a decal).
+      if (p.order !== undefined) o.renderOrder = Math.round(num(p.order, -100, 100, 0));
     } else if (n.kind === 'avatar') {
       if (p.color !== undefined && color(p.color, '#ff5c8a') !== n.color) {
         n.color = color(p.color, '#ff5c8a');
@@ -1170,6 +1184,16 @@ export class SceneHost {
         continue;
       }
       if (!CANVAS_METHODS.has(name)) continue;
+      if (name === 'setLineDash') {
+        g.setLineDash(Array.isArray(args[0]) ? args[0].slice(0, 16).map((v) => num(v, 0, 1e4, 0)) : []);
+        continue;
+      }
+      if (name === 'roundRect') {
+        const r = args[4];
+        const radii = Array.isArray(r) ? r.slice(0, 4).map((v) => num(v, 0, 1e4, 0)) : num(r, 0, 1e4, 0);
+        g.roundRect(...args.slice(0, 4).map((v) => num(v, -1e4, 1e4, 0)), radii);
+        continue;
+      }
       const text = name === 'fillText' || name === 'strokeText';
       const clean = args.slice(0, 9).map((v, i) => (text && i === 0 ? String(v).slice(0, 60) : num(v, -1e4, 1e4, 0)));
       if (name === 'arc' || name === 'ellipse') {

@@ -3,6 +3,14 @@
 `npm run update` gets the latest kit and prints what changed since yours. Uploads need the
 latest kit: Mini Mosh turns down games packed with an older one, and says how to update.
 
+## v11 (October 2026)
+
+- **Holes in extruded shapes:** `['extrude', path, { holes: [path, ...] }]` (a wall full of windows,
+  a letter O).
+- **Textures:** `roundRect` and `setLineDash` (dashed outlines).
+- **`order` on meshes:** which see-through things are drawn on top of which.
+- Packages say `"kit": 11`. Uploads need kit v11: run `npm run update`.
+
 ## v10 (October 2026)
 
 - **`['extrude', path, options]`**: a flat outline (drawn as on a canvas) pushed out into a solid,

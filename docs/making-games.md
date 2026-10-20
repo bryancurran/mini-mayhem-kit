@@ -307,7 +307,7 @@ frame are sent as one. `.remove()` removes a node and everything under it.
 
 ```js
 mm.group({ pos, rot, scale, parent, part, visible })
-mm.mesh({ shape | geometry, color | material, pos, rot, scale, parent, part, visible, shadow })
+mm.mesh({ shape | geometry, color | material, pos, rot, scale, parent, part, visible, shadow, order })
 mm.avatar({ color, mode, speed, crown, shadow, pos, rot, scale, parent, part })   // a Mosh, the players' character
 mm.label({ text, strong, style: 'tag' | 'me' | 'float' | 'bubble', tone: 'good' | 'great' | 'bad', color, pos, opacity, parent, part })
 mm.instances({ shape | geometry, color | material, count, shadow, outline, colorEase, pos, rot, scale, parent, part })
@@ -369,6 +369,8 @@ avatars under the group aren't copied.
   on its head, a flag in its hand). `pos` is then from that part, in the Mosh's own space: y up,
   facing +z, its left hand on the -x side.
 - `shadow`: `true` (cast and receive), `'cast'`, `'receive'` or `false` (the default).
+- `order` (meshes): among see-through things, ones with a higher order are drawn later, on top: a
+  blob shadow (order 2) over a marking on the ground (order 1). 0 by default.
 - `shape`:
   - `['box', w, h, d]`
   - `['sphere', r, widthSegments, heightSegments, phiStart, phiLength, thetaStart, thetaLength]`
@@ -383,11 +385,13 @@ avatars under the group aren't copied.
   - `['lathe', [[x, y], ...], segments, phiStart, phiLength]`: a profile spun round the y axis,
     `x` being how far out from the middle (a vase, a mushroom cap); 2 to 200 points.
   - `['extrude', path, { depth, bevelEnabled, bevelThickness, bevelSize, bevelSegments,
-    curveSegments }]`: a flat outline pushed out along z into a solid (a star, a leaf, a logo).
-    `path` is drawn as on a canvas: `[['moveTo', x, y], ['lineTo', x, y], ['bezierCurveTo',
-    c1x, c1y, c2x, c2y, x, y], ['quadraticCurveTo', cx, cy, x, y], ...]`. The options are three.js's
+    curveSegments, holes }]`: a flat outline pushed out along z into a solid (a star, a leaf, a
+    logo, a wall full of windows). `path` is drawn as on a canvas: `[['moveTo', x, y], ['lineTo',
+    x, y], ['bezierCurveTo', c1x, c1y, c2x, c2y, x, y], ['quadraticCurveTo', cx, cy, x, y], ...]`,
+    and `holes` is a list of more paths cut out of it (up to 64). The options are three.js's
     (`depth` 1, a bevel `bevelThickness` 0.2 deep and `bevelSize` 0.1 wide in `bevelSegments` 3
-    steps, curves in `curveSegments` 12); `bevelEnabled: false` for flat sides.
+    steps, curves in `curveSegments` 12); `bevelEnabled: false` for flat sides. With a list of two
+    materials, the first covers the front and back and the second the sides.
 
   Everything after the sizes can be left out. The angles are in radians, as in three.js: part of
   a sphere is a dome, half a cylinder (`openEnded: true` leaves its ends off) is an arch, part of
@@ -421,7 +425,8 @@ mm.bake(group, { colors })
   - Properties: `fillStyle`, `strokeStyle`, `lineWidth`, `globalAlpha`, `lineCap`,
     `lineJoin`, `font`, `textAlign` and `textBaseline`.
   - Paths: `beginPath`, `moveTo`, `lineTo`, `quadraticCurveTo`, `bezierCurveTo`, `arc`,
-    `arcTo`, `ellipse`, `rect` and `closePath`.
+    `arcTo`, `ellipse`, `rect`, `roundRect` and `closePath`; `setLineDash([on, off, ...])` for
+    dashed lines.
   - Drawing: `fill`, `stroke`, `fillRect`, `strokeRect`, `clearRect`, `fillText` and
     `strokeText`.
   - State: `save`, `restore`, `translate`, `rotate` and `scale`.
