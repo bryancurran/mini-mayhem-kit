@@ -3,6 +3,22 @@
 `npm run update` gets the latest kit and prints what changed since yours. Uploads need the
 latest kit: Mini Mosh turns down games packed with an older one, and says how to update.
 
+## v12 (October 2026)
+
+- **Questions with a number to pick:** `mm.hud.ask({ question, value, picker, locked, progress })`
+  shows a question with − and + buttons, the number, Lock in and a bar running down. Its buttons
+  send down, up and a press of a, so phones play with them (Mosh Count).
+- **More of the HUD:** `mm.hud.card({ title, text })` (a big "Round 2" card in the middle),
+  `mm.hud.result({ label, value, text, good })` (the answer, big) and `mm.hud.hint(false)` (hides
+  the controls hint until you show it again).
+- **Thought bubbles over name tags:** a label's `bubble: { text, tone }` ("🤔", "🔒", "8 ✓"), and
+  `style: 'count'`, a round yellow tag for a number.
+- **Moshes that aren't players:** `mm.avatar({ outfit: false })` wears nothing from the shop, and
+  `bobble: false` hides the ball on its antenna (under a hat).
+- **Manifest:** `"go": false` leaves out the "GO!" (for a game that opens with its own card), and
+  `input.repeat` has a held direction key go on repeating (counting a number up).
+- Packages say `"kit": 12`. Uploads need kit v12: run `npm run update`.
+
 ## v11 (October 2026)
 
 - **Holes in extruded shapes:** `['extrude', path, { holes: [path, ...] }]` (a wall full of windows,

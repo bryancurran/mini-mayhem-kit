@@ -11,7 +11,7 @@
 
 export const MM = {
   version: 1,
-  kitVersion: 11, // bump whenever the kit changes in a way uploads should wait for (see the kit's CHANGELOG.md)
+  kitVersion: 12, // bump whenever the kit changes in a way uploads should wait for (see the kit's CHANGELOG.md)
   netDelay: 300, // ms the server waits before a tick is final (later inputs move to the next tick)
   futureSlack: 300, // ms ahead of the server's clock an input may be stamped
   sendRate: 10, // snapshots per second (inputs are also passed on the moment they arrive)
@@ -62,6 +62,7 @@ export function checkManifest(raw) {
   const c = m.controls ?? {};
   for (const k of typing ? ['keyboard', 'touch'] : ['keyboard', 'touch', 'gamepad']) if (!text(c[k], 90)) errors.push(`controls.${k}: 1-90 characters`);
   if (m.intro !== undefined && !text(m.intro, 90)) errors.push('intro: up to 90 characters');
+  if (m.go !== undefined && typeof m.go !== 'boolean') errors.push('go: true or false');
 
   const tickRate = m.tickRate ?? 30;
   if (!Number.isInteger(tickRate) || tickRate < 10 || tickRate > 60) errors.push('tickRate: a whole number from 10 to 60');
@@ -81,6 +82,7 @@ export function checkManifest(raw) {
     errors.push('input.buttons: any of "a", "b"');
   }
   if (typeof input.dirs !== 'boolean') errors.push('input.dirs: true or false');
+  if (input.repeat !== undefined && typeof input.repeat !== 'boolean') errors.push('input.repeat: true or false');
   if (typeof input.move !== 'boolean') errors.push('input.move: true or false');
   if (!TOUCH_LAYOUTS.includes(input.touch)) errors.push(`input.touch: one of ${TOUCH_LAYOUTS.join(', ')}`);
   if (input.touchLabel !== undefined && !text(input.touchLabel, 12)) errors.push('input.touchLabel: up to 12 characters');
@@ -101,6 +103,7 @@ export function checkManifest(raw) {
     rules: m.rules,
     controls: { keyboard: c.keyboard, touch: c.touch, ...(typing ? {} : { gamepad: c.gamepad }) },
     ...(m.intro ? { intro: m.intro } : {}),
+    ...(m.go === false ? { go: false } : {}),
     tickRate,
     countdown,
     ...(players !== undefined ? { players: { min: players?.min, max: players?.max } } : {}),
@@ -108,6 +111,7 @@ export function checkManifest(raw) {
       buttons: input.buttons,
       dirs: input.dirs,
       move: input.move,
+      ...(input.repeat === true ? { repeat: true } : {}),
       touch: input.touch,
       ...(input.touchLabel ? { touchLabel: input.touchLabel } : {}),
       ...(typing ? { text: input.text, maxLength: input.maxLength } : {}),

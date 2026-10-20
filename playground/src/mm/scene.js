@@ -702,7 +702,10 @@ export class SceneHost {
       n.obj = new THREE.Mesh(this.shape(['box', 1, 1, 1]), this.colorMaterial('#ffffff'));
     } else if (kind === 'avatar') {
       n.color = color(props.color, '#ff5c8a');
-      n.avatar = new Avatar(n.color);
+      // outfit: false for a Mosh that isn't a player's (a parade, a crowd): it wears nothing from
+      // the shop, whatever its color.
+      n.noOutfit = props.outfit === false;
+      n.avatar = new Avatar(n.color, n.noOutfit ? [] : undefined);
       n.obj = n.avatar.group;
       n.mode = 'idle';
       n.speed = 0;
@@ -795,7 +798,13 @@ export class SceneHost {
       if (p.color !== undefined && color(p.color, '#ff5c8a') !== n.color) {
         n.color = color(p.color, '#ff5c8a');
         n.avatar.setColor(n.color);
-        n.avatar.setOutfit(outfitFor(n.color)); // a player's Mosh wears their outfit
+        if (!n.noOutfit) n.avatar.setOutfit(outfitFor(n.color)); // a player's Mosh wears their outfit
+        if (n.bobble === false) n.avatar.bobble.visible = false;
+      }
+      // bobble: false hides the ball on top of its antenna (under a party hat).
+      if (p.bobble !== undefined) {
+        n.bobble = p.bobble !== false;
+        n.avatar.bobble.visible = n.bobble && !n.avatar.worn.has('antenna');
       }
       if (p.mode !== undefined && AVATAR_MODES.has(p.mode)) n.mode = p.mode;
       if (p.speed !== undefined) n.speed = num(p.speed, 0, 50, 0);
@@ -836,17 +845,47 @@ export class SceneHost {
           n.text = undefined;
           if (p.text === undefined) p = { ...p, text };
         }
-        if (n.style !== 'bubble') el.className = n.style === 'float' ? `stack-float${LABEL_TONES.has(n.tone) ? ` ${n.tone}` : ''}` : n.style === 'me' ? 'nametag in-game me' : 'nametag in-game';
+        if (n.style !== 'bubble' && !n.nameEl) el.className = n.style === 'float' ? `stack-float${LABEL_TONES.has(n.tone) ? ` ${n.tone}` : ''}` : n.style === 'count' ? 'count-tag' : n.style === 'me' ? 'nametag in-game me' : 'nametag in-game';
+      }
+      // bubble: a thought bubble over a name tag ({ text, tone: 'good' | 'fair' | 'bad' }, null for
+      // none): the tag and the bubble become one, stacked.
+      if (p.bubble !== undefined && !n.bubbleEl && n.style !== 'bubble') {
+        const tag = document.createElement('span');
+        tag.className = el.className;
+        // Only its color: the rest of the label's style places it on the screen.
+        const c = el.style.getPropertyValue('--c');
+        if (c) tag.style.setProperty('--c', c);
+        tag.textContent = el.textContent;
+        n.bubbleEl = document.createElement('span');
+        n.bubbleEl.hidden = true;
+        el.replaceChildren(n.bubbleEl, tag);
+        el.className = 'count-watcher';
+        el.style.removeProperty('--c');
+        n.nameEl = tag;
+      }
+      const nameEl = n.nameEl ?? el;
+      if (n.nameEl && (p.style !== undefined || p.tone !== undefined || fresh)) {
+        nameEl.className = n.style === 'me' ? 'nametag in-game me' : 'nametag in-game';
+        el.className = 'count-watcher';
+      }
+      if (p.bubble !== undefined && n.bubbleEl) {
+        const b = p.bubble && typeof p.bubble === 'object' ? p.bubble : null;
+        n.bubbleEl.hidden = !b;
+        if (b) {
+          const tone = { good: ' exact', fair: ' close', bad: ' wrong' }[b.tone] ?? '';
+          n.bubbleEl.className = `count-bubble${tone}`;
+          n.bubbleEl.textContent = String(b.text ?? '').slice(0, 20);
+        }
       }
       if (p.text !== undefined || p.strong !== undefined) {
         if (p.text !== undefined) n.text = String(p.text).slice(0, 60);
         if (p.strong !== undefined) n.strong = p.strong === null ? '' : String(p.strong).slice(0, 20);
-        const target = n.style === 'bubble' ? el.firstChild : el;
+        const target = n.style === 'bubble' ? el.firstChild : nameEl;
         target.textContent = n.text ?? '';
         // An emphasized bit after the text (the count in "MASH! 3").
         if (n.strong) target.append(' ', Object.assign(document.createElement('b'), { textContent: n.strong }));
       }
-      if (p.color !== undefined) el.style.setProperty('--c', color(p.color, '#999999'));
+      if (p.color !== undefined) nameEl.style.setProperty('--c', color(p.color, '#999999'));
       if (p.opacity !== undefined) el.style.opacity = String(num(p.opacity, 0, 1, 1));
     } else if (n.kind === 'mist') {
       const u = o.material.uniforms;

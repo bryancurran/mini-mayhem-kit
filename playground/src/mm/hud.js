@@ -46,6 +46,10 @@ export class Hud {
     this.outList = [];
     this.meterDots = null;
     this.placeEl = null;
+    this.askEl = null;
+    this.cardEl = null;
+    this.resultEl = null;
+    this.onAction = null; // the ask card's buttons: (kind) => sends what the keys would (set by the host)
     this.lastSecond = null;
     this.typeForm = null;
     this.typeOptions = { show: true, placeholder: '' }; // as the game last set them
@@ -67,6 +71,150 @@ export class Hud {
     else if (part === 'status') this.status(a);
     else if (part === 'callout') this.callout(a);
     else if (part === 'place') this.place(a);
+    else if (part === 'ask') this.ask(a);
+    else if (part === 'card') this.card(a);
+    else if (part === 'result') this.result(a);
+    else if (part === 'hint') this.hint(a);
+  }
+
+  // Text in parts, some in a color: ['How many ', { text: 'RED', color: '#ff4d5e' }, ' ran by?'].
+  fillParts(el, parts) {
+    el.replaceChildren();
+    for (const part of (Array.isArray(parts) ? parts : [parts]).slice(0, 12)) {
+      if (part && typeof part === 'object') {
+        const b = document.createElement('b');
+        b.className = 'count-color';
+        if (COLOR.test(String(part.color))) b.style.setProperty('--c', part.color);
+        b.textContent = str(part.text, 40);
+        el.append(b);
+      } else if (part !== null && part !== undefined) el.append(str(part, 120));
+    }
+  }
+
+  // A question with a number to pick (Mosh Count's): { question (text or parts, see fillParts),
+  // value, picker (false: just the question, for spectators), locked, progress (0 to 1: the bar
+  // running down), lock, lockedText }, or null to hide it. Its −, + and Lock in send what down, up
+  // and the a button do.
+  ask(o) {
+    if (!o || typeof o !== 'object') {
+      if (this.askEl) this.askEl.hidden = true;
+      this.askKey = null;
+      return;
+    }
+    if (!this.askEl) {
+      const el = (this.askEl = document.createElement('div'));
+      el.className = 'count-ask';
+      el.innerHTML = `
+        <div class="count-question"></div>
+        <div class="count-picker">
+          <button class="count-btn" type="button" data-step="-1" aria-label="One less">−</button>
+          <span class="count-value">0</span>
+          <button class="count-btn" type="button" data-step="1" aria-label="One more">+</button>
+        </div>
+        <button class="btn primary count-lock" type="button">Lock in</button>
+        <div class="count-bar"><i></i></div>`;
+      const less = el.querySelector('[data-step="-1"]');
+      const more = el.querySelector('[data-step="1"]');
+      const tap = (btn, kind) =>
+        btn.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          this.onAction?.(kind);
+        });
+      tap(less, 'down');
+      tap(more, 'up');
+      tap(el.querySelector('.count-lock'), 'a');
+      this.el.insertBefore(el, this.bannerEl);
+    }
+    const el = this.askEl;
+    // Shown again (a new question): it pops in.
+    if (el.hidden) {
+      el.hidden = false;
+      el.style.animation = 'none';
+      void el.offsetWidth;
+      el.style.animation = '';
+    }
+    const key = JSON.stringify(o.question ?? '');
+    if (key !== this.askKey) {
+      this.askKey = key;
+      this.fillParts(el.querySelector('.count-question'), o.question ?? '');
+    }
+    const picker = o.picker !== false;
+    el.querySelector('.count-picker').hidden = !picker;
+    const lock = el.querySelector('.count-lock');
+    lock.hidden = !picker;
+    const locked = o.locked === true;
+    el.classList.toggle('locked', locked);
+    const label = locked ? str(o.lockedText ?? 'Locked in!', 24) : str(o.lock ?? 'Lock in', 24);
+    if (lock.textContent !== label) lock.textContent = label;
+    const value = el.querySelector('.count-value');
+    const v = Number.isFinite(o.value) ? String(Math.round(o.value)) : '';
+    if (value.textContent !== v) {
+      value.textContent = v;
+      value.classList.remove('bump');
+      void value.offsetWidth;
+      value.classList.add('bump');
+    }
+    const progress = Number.isFinite(o.progress) ? Math.max(0, Math.min(1, o.progress)) : null;
+    el.querySelector('.count-bar').hidden = progress === null;
+    if (progress !== null) el.querySelector('.count-bar i').style.transform = `scaleX(${progress})`;
+  }
+
+  // A big card in the middle (a round's "Watch the colors!"): { title, text }, or null to hide it.
+  card(o) {
+    if (!o || typeof o !== 'object') {
+      if (this.cardEl) this.cardEl.hidden = true;
+      return;
+    }
+    if (!this.cardEl) {
+      const el = (this.cardEl = document.createElement('div'));
+      el.className = 'count-intro';
+      el.innerHTML = '<span class="count-intro-round"></span><span class="count-intro-hint"></span>';
+      this.el.insertBefore(el, this.bannerEl);
+    }
+    const el = this.cardEl;
+    const title = el.querySelector('.count-intro-round');
+    const text = el.querySelector('.count-intro-hint');
+    const changed = el.hidden || title.textContent !== str(o.title, 40) || text.textContent !== str(o.text, 80);
+    title.textContent = str(o.title, 40);
+    text.textContent = str(o.text, 80);
+    if (changed) {
+      el.hidden = false;
+      el.style.animation = 'none';
+      void el.offsetWidth;
+      el.style.animation = '';
+    }
+  }
+
+  // The answer, big, near the top: { label, value, text, good (text in green) }, or null to hide it.
+  result(o) {
+    if (!o || typeof o !== 'object') {
+      if (this.resultEl) this.resultEl.hidden = true;
+      return;
+    }
+    if (!this.resultEl) {
+      const el = (this.resultEl = document.createElement('div'));
+      el.className = 'count-result';
+      el.innerHTML = '<span class="count-result-label"></span><span class="count-result-value"></span><span class="count-result-you"></span>';
+      this.el.insertBefore(el, this.bannerEl);
+    }
+    const el = this.resultEl;
+    el.querySelector('.count-result-label').textContent = str(o.label ?? 'Answer', 24);
+    el.querySelector('.count-result-value').textContent = str(o.value, 12);
+    el.querySelector('.count-result-you').textContent = str(o.text, 60);
+    el.classList.toggle('good', o.good === true);
+    if (el.hidden) {
+      el.hidden = false;
+      el.style.animation = 'none';
+      void el.offsetWidth;
+      el.style.animation = '';
+    }
+  }
+
+  // Shows or hides the controls hint along the bottom (Mosh Count shows it only while answering).
+  hint(show) {
+    const hint = this.el.querySelector('.hud-hint');
+    if (!hint.textContent) return;
+    this.el.querySelector('.hud-bottom').hidden = show === false;
   }
 
   scores(values) {

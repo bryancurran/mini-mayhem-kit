@@ -55,6 +55,8 @@ to the game's library (see Uploading).
 - `tickRate`: rule steps per second, 10-60. Use 60 for anything fast (running, driving, flying,
   bumping, aiming a jump), which also makes presses land sooner; 30 for slower games; less only
   for games played a move at a time. It costs server time (see Limits), so keep `step` lean.
+- `go`: `false` leaves out the big "GO!" and its sound when the countdown ends, for a game that
+  opens with something of its own (Mosh Count's "Round 1" card).
 - `players` (required): the fewest and the most players the game takes, from 1 to 8. The lobby
   won't start it with fewer or more, and the play test, the playground and the bots stay inside
   it. Take 1 to 8 if you can: a room holds up to 8, and playing alone is how people practise and
@@ -70,6 +72,9 @@ to the game's library (see Uploading).
 | `dirs: true` (taps) | arrows / WASD | d-pad, stick flicks | |
 | `move: true` (a stick) | arrows / WASD held | left stick, d-pad | |
 | `text: "enter"` or `"live"` (typing) | typing in a text box | can't play | the phone's keyboard |
+
+`repeat: true` (with `dirs`) has a direction key held down go on repeating, as it does in a text
+box, for counting a number up or down (Mosh Count). Without it, a held key is one tap.
 
 The stick counts from "GO!": where it's held during the countdown is sent the moment the game
 starts, so a player who holds a direction through the countdown sets off straight away.
@@ -308,8 +313,8 @@ frame are sent as one. `.remove()` removes a node and everything under it.
 ```js
 mm.group({ pos, rot, scale, parent, part, visible })
 mm.mesh({ shape | geometry, color | material, pos, rot, scale, parent, part, visible, shadow, order })
-mm.avatar({ color, mode, speed, crown, shadow, pos, rot, scale, parent, part })   // a Mosh, the players' character
-mm.label({ text, strong, style: 'tag' | 'me' | 'float' | 'bubble', tone: 'good' | 'great' | 'bad', color, pos, opacity, parent, part })
+mm.avatar({ color, mode, speed, crown, shadow, outfit, bobble, pos, rot, scale, parent, part })   // a Mosh, the players' character
+mm.label({ text, strong, style: 'tag' | 'me' | 'float' | 'bubble' | 'count', tone: 'good' | 'great' | 'bad', color, bubble, pos, opacity, parent, part })
 mm.instances({ shape | geometry, color | material, count, shadow, outline, colorEase, pos, rot, scale, parent, part })
 mm.crowd({ max, shadow, pos, parent })           // lots of little Moshes at once (a conga line, an audience)
 mm.line({ points: [x, y, z, ...], color, pos, parent })   // a thin line (a wire, a laser)
@@ -347,9 +352,14 @@ hat })` places the first `shown` of them, from Mosh `from` (0) on:
 - `max` up to 2000 in all.
 
 Labels: `style: 'tag'` is a name tag in the player's `color`, `'me'` the same tag filled in with it
-(for "YOU" over your own Mosh), `'float'` floating text in a `tone`, and `'bubble'` a pulsing
-yellow call to action over someone ("MASH! 3"). `strong` is a bit after the text in bold (the
-count).
+(for "YOU" over your own Mosh), `'float'` floating text in a `tone`, `'bubble'` a pulsing
+yellow call to action over someone ("MASH! 3") and `'count'` a round yellow tag for a number (the
+Moshes counted off in Mosh Count). `strong` is a bit after the text in bold (the count).
+
+`bubble` puts a thought bubble over a name tag (`'tag'` or `'me'`), stacked above it: `{ text,
+tone }` with `tone` `'good'` (green), `'fair'` (yellow) or `'bad'` (pink), or none for white, and
+`null` to hide it: "🤔" while a player thinks, "🔒" once they've locked in, then their answer
+("8 ✓"). Give `bubble: null` when making the label if it will ever have one.
 
 `mm.mist` is a bank of cloud standing in front of the scene (facing the camera, like a wall): solid
 from a wavy lower edge at the world height `edge` up to `top`, where it fades, its waves rolling
@@ -406,6 +416,9 @@ avatars under the group aren't copied.
 - avatar `mode`: `idle`, `happy`, `run`, `jump`, `fall`, `stuck`, `swim`, `balance`,
   `sleep` or `cheer`; `speed` sets the run pace; `lean` (radians) sways its body to one side on
   top of the animation (dancing to a beat).
+- avatar `outfit: false` (when making it): a Mosh that isn't a player's (a parade, a crowd) wears
+  nothing from the shop, whatever its color. Players' Moshes wear the outfit that goes with their
+  color. `bobble: false` hides the ball on top of its antenna (under a hat you give it).
 
 ```js
 mm.material({ color, texture, repeat: [u, v], opacity, transparent, depthWrite, side: 'double', emissive, unlit, outline, blending: 'add' })
@@ -503,6 +516,10 @@ mm.hud.place(2, 4)                                       // your place: "2nd /4"
 mm.hud.center('YOU WIN!', { style: 'count' | 'go' | 'bad' | 'big', ms })   // ms: 0 keeps it up
 mm.hud.banner('Text', { style: 'info' | 'warn' | 'section', title, ms })   // title: in bold above (with 'section')
 mm.hud.textbox({ show, placeholder })                    // typing games: the text box; false hides it
+mm.hud.ask({ question, value, picker, locked, progress, lock, lockedText })   // a question with a number to pick; null hides it
+mm.hud.card({ title, text })                             // a big card in the middle ("Round 2: Watch the colors!"); null hides it
+mm.hud.result({ label, value, text, good })              // the answer, big, near the top; null hides it
+mm.hud.hint(false)                                       // hides the controls hint (true shows it again)
 ```
 
 - `mm.hud.timer` options: `label` over the time (`'Time'` if left out, `'Last slice'` say),
@@ -516,6 +533,20 @@ mm.hud.textbox({ show, placeholder })                    // typing games: the te
   (the `icon`, at the far end). Down the right edge, colored by `stops` (Sandwich Stack's tower),
   or with `across: true` along the top (Sky Sprint's course, the icon a 🏁). Players in `done`
   are dimmed (they've finished).
+- `mm.hud.ask`: a card in the middle with a `question`, and under it a number with − and +
+  buttons either side, a Lock in button and a bar that runs down (Mosh Count). `question` is text
+  or a list of parts, some in a color: `['How many ', { text: 'RED', color: '#ff4d5e' }, ' Moshes
+  ran by?']`. `value` is the number shown (from the state: the player's answer so far); it pops
+  when it changes. The buttons send what the keys would: − and + are down and up (`dirs`), Lock in
+  a press of a, so a phone plays with them (`touch: 'none'`) and the rules see the same inputs as
+  from a keyboard or gamepad. `picker: false` shows only the question (for spectators), `locked:
+  true` greys the buttons out and shows `lockedText` ("Locked in!") instead of `lock` ("Lock in"),
+  and `progress` (0 to 1) sets the bar, or leave it out for none. It pops in each time it's shown.
+- `mm.hud.card`: a `title` in small capitals over a big `text`; it pops in when either changes.
+- `mm.hud.result`: `label` ("Answer") over a big `value`, and a line of `text` under it, in green
+  with `good: true` ("You said 8: exact! +3").
+- `mm.hud.hint(false)`: the controls hint along the bottom stays hidden until `hint(true)`, for a
+  game whose controls only matter now and then (the answer stage).
 - `mm.hud.place`: where you are in the race right now, at the top right (`null` for
   spectators). With a place, the tower meter and no score chips, the timer sits in the middle
   of the top (Beanstalk Blitz).
@@ -525,8 +556,9 @@ mm.hud.textbox({ show, placeholder })                    // typing games: the te
   text or color changes. It sits off to the left on wide screens and across the top on narrow
   ones, and isn't counted in `view.screen.safe` (Flag Frenzy's call of the flag's color).
 
-The engine already shows the countdown and "GO!", the controls hint, "Spectating" for
-people who joined mid-game, the whistle at the end and the results screen.
+The engine already shows the countdown and "GO!" (unless the manifest says `"go": false`), the
+controls hint, "Spectating" for people who joined mid-game, the whistle at the end and the results
+screen.
 
 Where things sit:
 - **Along the top:** the score chips (top left), the timer (top right) and the status pill just

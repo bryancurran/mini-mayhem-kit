@@ -327,6 +327,27 @@
       meter(options) {
         send('meter', options);
       },
+      // A question with a number to pick: { question: [text, { text, color }, ...], value, picker,
+      // locked, progress, lock, lockedText }, or null to hide it. Its −, + and Lock in send down,
+      // up and a press of a.
+      ask(options) {
+        if (!options || typeof options !== 'object') return send('ask', null);
+        const o = Object.assign({}, options);
+        if (typeof o.progress === 'number') o.progress = Math.round(Math.max(0, Math.min(1, o.progress)) * 1000) / 1000;
+        send('ask', o);
+      },
+      // A big card in the middle: { title, text }, or null to hide it.
+      card(options) {
+        send('card', options && typeof options === 'object' ? options : null);
+      },
+      // The answer, big, near the top: { label, value, text, good }, or null to hide it.
+      result(options) {
+        send('result', options && typeof options === 'object' ? options : null);
+      },
+      // Shows (true) or hides (false) the controls hint along the bottom.
+      hint(show) {
+        send('hint', show !== false);
+      },
       // Your place ("2nd" of 4) at the top right, or null to hide it.
       place(place, of) {
         send('place', typeof place === 'number' && Number.isFinite(place) ? { place: Math.round(place), of: typeof of === 'number' ? Math.round(of) : null } : null);

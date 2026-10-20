@@ -48,6 +48,7 @@ class ScriptedView {
     const meta = MINIGAMES[id];
     const hint = this.isPlaying && meta ? (isTouchDevice ? meta.controls.touch : meta.controls.keyboard) : null;
     this.hud = new Hud(ctx.hudRoot, { players: this.players, hint });
+    this.hud.onAction = (kind) => this.controls?.hudAction(kind);
     if (!this.isPlaying) this.hud.banner('Spectating · you’ll play next round', { style: 'info' });
     this.turn = 0; // mm.controls({ turn }), kept for the controls once they're made
     this.host = new SceneHost(this.scene, this.camera, {
@@ -209,8 +210,11 @@ class ScriptedView {
       }
     } else if (this.lastCountdown !== 0 && this.lastCountdown !== null) {
       this.lastCountdown = 0;
-      this.hud.center('GO!', { style: 'go', ms: 900 });
-      sfx.go();
+      // A game can open with something of its own instead (manifest "go": false).
+      if (this.manifest?.go !== false) {
+        this.hud.center('GO!', { style: 'go', ms: 900 });
+        sfx.go();
+      }
     }
   }
 

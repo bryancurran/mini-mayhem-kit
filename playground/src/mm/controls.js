@@ -110,6 +110,17 @@ export class Controls {
     this.queue.push([this.clock(), action]);
   }
 
+  // A button in the HUD (mm.hud.ask's −, + and Lock in): 'up' and 'down' send those directions
+  // (as they are: they mean more and less, not a way on the screen), 'a' a press and release.
+  hudAction(kind) {
+    if (kind === 'up' || kind === 'down') {
+      if (this.spec.dirs) this.queue.push([this.clock(), ['d', kind === 'up' ? 'u' : 'd']]);
+    } else if (kind === 'a') {
+      this.down('a', 'hud');
+      this.up('a', 'hud');
+    }
+  }
+
   down(button, source) {
     if (!this.spec.buttons.includes(button)) return;
     const held = this.held[button];
@@ -137,7 +148,8 @@ export class Controls {
     }
     const dir = KEY_DIRS[code];
     if (dir && (this.spec.dirs || this.spec.move)) {
-      if (this.spec.dirs && !e.repeat) this.push(['d', dir]);
+      // input.repeat: a direction key held down goes on repeating, as in a text box.
+      if (this.spec.dirs && (!e.repeat || this.spec.repeat === true)) this.push(['d', dir]);
       this.keys.add(dir);
       used = true;
     }
