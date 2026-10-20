@@ -148,8 +148,13 @@ mm.burst({ pos, count: 20, speed: 5, up: 5, life: 0.8, size: 0.14, gravity: 10, 
 mm.burst({ pos, count: 40, speed: 7, up: 9, life: 1.6, size: 0.16, gravity: 12, colors: CONFETTI });
 ```
 
+- The table names the built-in synthesized sounds. The sound library (`npm run sounds`, and
+  "Sounds and music" in `docs/making-games.md`) has a thousand more: pick ones that suit your
+  game's world (wood for a wooden world, `water/splash` for water, `retro/` for an arcade look),
+  a `jingle/` for the win, `voice/` for a countdown or "Go!", and a music loop for its mood.
 - Play your own sounds only for what you did or what affects you, and quieter or not at all
   for everyone else's (eight players collecting coins at once is noise).
+- Music sits under the action (`volume` 0.5 to 1): it sets the mood, it doesn't lead.
 - The engine already plays the countdown, "GO!", the whistle at the end and the results, and the
   HUD timer ticks in the last ten seconds. Don't add your own.
 

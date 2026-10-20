@@ -5,6 +5,7 @@ import { MoshCrowd } from '../crowd.js';
 import { addClouds, addLights, addSky, addWater, noOutline, toon } from '../gfx.js';
 import { Particles, Ripples } from '../particles.js';
 import { sfx } from '../sfx.js';
+import { playSound, setLoop, setMusic, stopSounds } from '../sounds.js';
 
 // Carries out the drawing commands a packaged minigame's view.js records (see
 // shared/mm/prelude-view.js) with three.js. Everything coming out of the sandbox is untrusted:
@@ -66,6 +67,12 @@ const AVATAR_PARTS = {
 const AVATAR_MODES = new Set(['idle', 'happy', 'run', 'jump', 'fall', 'stuck', 'swim', 'balance', 'sleep', 'cheer']);
 const LABEL_TONES = new Set(['good', 'great', 'bad']);
 const SOUNDS = new Set(Object.keys(sfx));
+// What a library sound, music or loop may be asked for with (sounds.js keeps them in range).
+const soundOptions = (o) => {
+  const out = {};
+  for (const k of ['volume', 'pitch', 'take', 'pan']) if (typeof o?.[k] === 'number' && Number.isFinite(o[k])) out[k] = o[k];
+  return out;
+};
 const CANVAS_PROPS = new Set(['fillStyle', 'strokeStyle', 'lineWidth', 'globalAlpha', 'lineCap', 'lineJoin', 'font', 'textAlign', 'textBaseline']);
 const CANVAS_METHODS = new Set([
   'fillRect', 'strokeRect', 'clearRect', 'beginPath', 'closePath', 'moveTo', 'lineTo', 'quadraticCurveTo', 'bezierCurveTo',
@@ -630,8 +637,10 @@ export class SceneHost {
           if (sounds++ < LIMITS.soundsPerFrame && SOUNDS.has(a)) {
             const args = (Array.isArray(b) ? b : []).slice(0, 3).filter((x) => typeof x === 'boolean' || (typeof x === 'number' && Number.isFinite(x)));
             sfx[a](...args.map((x) => (typeof x === 'number' ? Math.max(-100, Math.min(100, x)) : x)));
-          }
-        } else if (op === 'hud') this.hud.apply(a, b, d);
+          } else if (sounds <= LIMITS.soundsPerFrame && typeof a === 'string' && a.includes('/')) playSound(a, soundOptions(Array.isArray(b) ? b[0] : null));
+        } else if (op === 'music') setMusic(typeof a === 'string' ? a : null, soundOptions(b));
+        else if (op === 'loop') setLoop(String(a).slice(0, 24), typeof b === 'string' ? b : null, soundOptions(d));
+        else if (op === 'hud') this.hud.apply(a, b, d);
         else throw new BadCommand(`unknown command "${String(op).slice(0, 20)}"`);
       } catch (err) {
         if (!(err instanceof BadCommand)) throw err;
@@ -1181,6 +1190,8 @@ export class SceneHost {
       mat.opacity = opacity;
     }
     if (p.depthWrite !== undefined) mat.depthWrite = p.depthWrite !== false;
+    // alphaTest: the parts of a texture less opaque than this aren't drawn at all (a net, leaves).
+    if (p.alphaTest !== undefined) mat.alphaTest = num(p.alphaTest, 0, 1, 0);
     if (p.side !== undefined) mat.side = p.side === 'double' ? THREE.DoubleSide : p.side === 'back' ? THREE.BackSide : THREE.FrontSide;
     if (p.emissive !== undefined && mat.emissive) mat.emissive.set(color(p.emissive, '#000000'));
     if (p.blending !== undefined) mat.blending = p.blending === 'add' ? THREE.AdditiveBlending : THREE.NormalBlending;
@@ -1618,6 +1629,7 @@ export class SceneHost {
   // Frees what disposeScene() leaves alone: cached shapes and colors, and the game's materials,
   // textures and geometries (everything else in the scene goes with disposeScene()).
   dispose() {
+    stopSounds();
     for (const g of this.shapeCache.values()) g.dispose();
     for (const m of this.colorCache.values()) m.dispose();
     for (const r of this.resources.values()) {

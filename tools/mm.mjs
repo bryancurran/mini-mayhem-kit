@@ -17,6 +17,9 @@
 //   npm run get <id>                         download a game from the library into games/<id>
 //   (check, login, upload, delete and get also take -- --server <url> to use another server)
 //   npm run list                             every game in games/ and examples/
+//   npm run sounds [words]                   the sound library: with words (coin, splash, spooky),
+//                                            the sounds and music that match; without, a page in
+//                                            the playground to listen to them all
 //
 // <id> is a folder in games/ or examples/, or a path to a game folder or a .mm file.
 
@@ -134,7 +137,7 @@ async function needLogin() {
   throw new Error('Sign the kit in to your Mini Mosh account first: run npm run login (once on each computer). Every game in the library belongs to an account.');
 }
 
-const commands = { update, new: create, check, play, shot, pack, login, logout, upload, delete: remove, get, list };
+const commands = { update, new: create, check, play, shot, pack, login, logout, upload, delete: remove, get, list, sounds };
 if (!commands[command]) {
   const lines = fs.readFileSync(new URL(import.meta.url), 'utf8').split('\n');
   const usage = lines.slice(1, lines.findIndex((l, i) => i > 0 && !l.startsWith('//')));
@@ -227,6 +230,7 @@ async function check() {
     process.exit(1);
   }
   console.log('✓ Passed. (Uploads get this same play test, then a review.)');
+  checkSounds(pkg.files['view.js']);
   await checkNameOnline(m);
   const same = (a, b) => a.replace(/\s+/g, ' ').trim() === b.replace(/\s+/g, ' ').trim();
   const starter = (f) => fs.readFileSync(path.join(ROOT, 'templates', 'starter', f), 'utf8');
@@ -253,6 +257,51 @@ async function checkNameOnline(m) {
   if (sameId) console.log(`! The id "${m.id}" is already used in the library ("${sameId.name}"): change "id" in manifest.json before uploading. (If it's your game, sign the kit in to the account it's in: npm run login.)`);
   if (sameName && sameName !== sameId) console.log(`! The name "${m.name}" is already used in the library: change "name" in manifest.json before uploading.`);
   if (!sameId && !sameName) console.log(`✓ The id and name are free in the library (${host}).`);
+}
+
+// ---- sounds ------------------------------------------------------------------------------
+
+// (Functions, not constants: the commands above run before constants down here exist.)
+function soundLibrary() {
+  return JSON.parse(fs.readFileSync(path.join(ROOT, 'shared', 'sounds', 'library.json'), 'utf8'));
+}
+
+// Names in view.js that aren't in the sound library ('hit/wood-hevy', mm.music('nope')): they'd
+// play nothing.
+function checkSounds(view) {
+  const lib = soundLibrary();
+  const sounds = [...view.matchAll(/mm\.(?:sound|loop)\(([^)]*)\)/g)].flatMap((m) => [...m[1].matchAll(/['"`]([a-z0-9-]+\/[a-z0-9-]+)['"`]/g)].map((n) => n[1]));
+  const tracks = [...view.matchAll(/mm\.music\(\s*['"`]([a-z0-9-]+)['"`]/g)].map((m) => m[1]);
+  const missing = [...new Set([...sounds.filter((n) => !lib.sounds[n]).map((n) => `sound "${n}"`), ...tracks.filter((n) => !lib.music[n]).map((n) => `music loop "${n}"`)])];
+  for (const what of missing) console.log(`! There's no ${what} in the sound library, so it won't play. Find the right name with npm run sounds -- <words>.`);
+}
+
+// npm run sounds -- coin: the sounds and music whose names or words match all of them; without
+// words, the playground's page to listen to them.
+async function sounds() {
+  if (!args.length) {
+    const { startPlayground } = await import('./playground.mjs');
+    const server = await startPlayground({ port: Number(flags.port ?? 5173) });
+    console.log('The sound library, to listen to:');
+    for (const url of server.resolvedUrls.local) console.log(`  ${url}?sounds`);
+    console.log('Ctrl+C to stop. (npm run sounds -- <words> lists matches here instead.)');
+    return;
+  }
+  // ("music" means just the music.)
+  const onlyMusic = args.some((w) => w.toLowerCase() === 'music');
+  const words = args.map((w) => w.toLowerCase()).filter((w) => w !== 'music');
+  const lib = soundLibrary();
+  const match = (name, tags) => words.every((w) => `${name} ${tags}`.includes(w));
+  const secs = (s) => `${s < 10 ? s.toFixed(1) : Math.round(s)} s`;
+  const found = onlyMusic ? [] : Object.entries(lib.sounds).filter(([name, s]) => match(name, s.tags));
+  const music = Object.entries(lib.music).filter(([name, m]) => match(name, m.tags));
+  for (const [name, s] of found.slice(0, 80)) {
+    console.log(`  mm.sound('${name}')${' '.repeat(Math.max(1, 34 - name.length))}${secs(s.takes[0][1])}${s.takes.length > 1 ? `, ${s.takes.length} takes` : ''}${s.loop ? ', loops' : ''}`);
+  }
+  if (found.length > 80) console.log(`  … and ${found.length - 80} more: add a word.`);
+  for (const [name, m] of music) console.log(`  mm.music('${name}')${' '.repeat(Math.max(1, 34 - name.length))}${secs(m.dur)}: ${m.mood}`);
+  if (!found.length && !music.length) console.log('Nothing matches all of those words: try fewer, or other ones.');
+  else console.log(`${found.length} sound${found.length === 1 ? '' : 's'}, ${music.length} music loop${music.length === 1 ? '' : 's'}. Listen to them: npm run sounds (no words).`);
 }
 
 // ---- play --------------------------------------------------------------------------------

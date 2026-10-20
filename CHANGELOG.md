@@ -3,6 +3,22 @@
 `npm run update` gets the latest kit and prints what changed since yours. Uploads need the
 latest kit: Mini Mosh turns down games packed with an older one, and says how to update.
 
+## v13 (October 2026)
+
+- **A sound library:** over 1,100 sounds (2,000 recordings) and 78 music loops, all free to use
+  (CC0), that any game can play by name: `mm.sound('hit/wood-heavy')`, with `{ volume, pitch,
+  take, pan }`. Impacts, breaking, explosions, footsteps, splashes and squishes, creatures, 512
+  8-bit sounds, clicks, an announcer ("ready", "go", one to ten, "you win"), jingles, cards and
+  dice, ambience. Sounds with several takes play a different one each time.
+- **Music:** `mm.music('happy-adventure')` (one loop at a time, faded in and across; `null` fades
+  it out), for every mood: upbeat, sporty, retro, calm, spooky, electronic, winter.
+- **Loops:** `mm.loop('engine', name, { volume, pitch })`, up to 4, that can follow a speed every
+  frame.
+- **`npm run sounds`** opens a page to listen to them all; `npm run sounds -- splash` lists the ones
+  that match from the terminal. `npm run check` warns about names that aren't in the library.
+- See "Sounds and music" in docs/making-games.md. The one-word synthesized sounds still work.
+- Packages say `"kit": 13`. Uploads need kit v13: run `npm run update`.
+
 ## v12 (October 2026)
 
 - **Questions with a number to pick:** `mm.hud.ask({ question, value, picker, locked, progress })`

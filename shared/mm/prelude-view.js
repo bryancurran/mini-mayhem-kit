@@ -21,6 +21,8 @@
   let camera = null;
   let lastControls = null; // mm.controls as last sent
   let lastSun = null; // mm.sun as last sent
+  let lastMusic = null; // mm.music as last sent
+  const lastLoops = {}; // mm.loop as last sent, per key
   const hudLast = {}; // last value sent per HUD part, so unchanged ones aren't resent
   let nextId = 1;
 
@@ -286,8 +288,29 @@
     ripple(options) {
       out.push(['ripple', pack(options)]);
     },
+    // A sound: one of the synthesized ones by its name ('pop', 'win'), or one from the sound
+    // library by its ('hit/wood-heavy'), with { volume, pitch, take, pan }.
     sound(name, ...args) {
       out.push(['sound', name, args]);
+    },
+    // The music: a loop from the library by name, faded in (and across from another), or null to
+    // fade it out. { volume }. Call it every frame or once: it's sent only when it changes.
+    music(name, options) {
+      const o = [name ?? null, options ? pack(options) : null];
+      const text = JSON.stringify(o);
+      if (text === lastMusic) return;
+      lastMusic = text;
+      out.push(['music', ...o]);
+    },
+    // A looping sound from the library under a key of the game's own ('engine', 'rain'; up to 4
+    // at once), or null to stop it. { volume, pitch }, which can change every frame (to follow a
+    // speed, say). Sent only when it changes.
+    loop(key, name, options) {
+      const o = [String(key), name ?? null, options ? pack(options) : null];
+      const text = JSON.stringify(o);
+      if (text === lastLoops[o[0]]) return;
+      lastLoops[o[0]] = text;
+      out.push(['loop', ...o]);
     },
     hud: {
       // A score per player (in player order) on the chips along the top: numbers or short text.

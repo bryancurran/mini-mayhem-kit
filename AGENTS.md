@@ -105,8 +105,8 @@ netcode, spectators, the results screen and coins. You write the rules and the l
    - The game then shows under **Games → My games** on minimosh.io too, where your user can
      update, rename or delete it.
 
-`npm run list` shows every game in `games/` and `examples/`. Flags go after `--` (that's how
-npm passes them on).
+`npm run list` shows every game in `games/` and `examples/`. `npm run sounds -- <words>` finds
+sounds and music in the sound library. Flags go after `--` (that's how npm passes them on).
 
 ## Changing a game that's already in the library
 
@@ -207,6 +207,11 @@ and `npm run play`) rather than assuming. Compare it with `examples/`.
 - **Feel:** every action answers straight away with a sound (`mm.sound`), a burst
   (`mm.burst`), an avatar mode (`jump`, `happy`, `fall`) or floating text (a `float` label).
   Hits, catches, scores and knock-outs deserve something bigger.
+- **Sound:** pick sounds from the sound library that suit the game's world, rather than the
+  one-word synthesized bleeps: `npm run sounds -- <words>` finds them (`coin`, `splash`, `wood`,
+  `jingle win`), and `npm run sounds` opens a page where your user can listen. A music loop for
+  the mood (`mm.music`, `npm run sounds -- music upbeat`) makes a game feel finished. See "Sounds
+  and music" in `docs/making-games.md`.
 - **Camera:** frames the action on the free part of the screen (`safe: true`), keeps every
   player in view, follows smoothly, and works with the phone held upright.
 - **Look:** a world to play in, not a flat void: sky, clouds or a backdrop, ground with some

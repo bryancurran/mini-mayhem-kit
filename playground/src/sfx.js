@@ -29,7 +29,15 @@ function audio() {
 // Browsers only allow audio after a user gesture, so stay silent until the first one.
 function unlock() {
   unlocked = true;
-  audio();
+  if (audio()) for (const fn of waiting.splice(0)) fn(ctx, master);
+}
+
+// The audio context and the volume everything goes through (the mute button's), for the sound
+// library (sounds.js): calls fn(ctx, master) as soon as sound can play, after the first tap or key.
+const waiting = [];
+export function withAudio(fn) {
+  if (audio()) fn(ctx, master);
+  else waiting.push(fn);
 }
 for (const type of ['pointerdown', 'keydown', 'touchstart']) {
   window.addEventListener(type, unlock, { passive: true });

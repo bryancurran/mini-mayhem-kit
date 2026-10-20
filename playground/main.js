@@ -9,13 +9,18 @@ import { Input } from './src/input.js';
 import { loadPackage } from './src/mm/catalog.js';
 import { scriptedView } from './src/mm/host.js';
 import { loadQuickJS } from './src/mm/quickjs.js';
+import { playSound, setLoop, setMusic, setSoundBase } from './src/sounds.js';
 
 // The playground: plays a game from games/ or examples/ in this browser, with the same drawing,
 // HUD and controls as Mini Mosh. A local stand-in for the server runs here too, and your
 // connection can be given a delay so you see how prediction feels online.
 //
 // URL: ?game=<id>&bots=3&lag=0 (ms each way)&seed=7 (the same game.random() every time).
-// &autoplay presses buttons (or types) for you (screenshots).
+// &autoplay presses buttons (or types) for you (screenshots). ?sounds: the sound library, to
+// listen to (npm run sounds).
+
+// The sound library's files come from Mini Mosh's server (MM_SERVER, set by tools/playground.mjs).
+setSoundBase(new URL('sounds/', import.meta.env.MM_SERVER || 'https://minimosh.io/').href);
 
 const COLORS = ['#ff4d5e', '#3d8bff', '#3ccf4e', '#ffc83d', '#a65bff', '#ff8f2e', '#ff6fcf', '#2ed9d9'];
 const BOT_NAMES = ['Ava', 'Kai', 'Mo', 'Lu', 'Zed', 'Pip', 'Rex'];
@@ -44,13 +49,74 @@ for (const level of ['error', 'warn']) {
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-if (!id) showPicker();
+if (params.has('sounds')) showSounds();
+else if (!id) showPicker();
 else start().catch((e) => showError(e.message));
 
 async function showPicker() {
   const list = await (await fetch('mm/index.json')).json();
   const link = (g) => `<a class="pg-game" href="?game=${encodeURIComponent(g.id)}"><b>${esc(g.name ?? g.id)}</b><small>${esc(g.folder)}/${esc(g.dir)}${g.error ? ` · ${esc(g.error)}` : ''}</small></a>`;
-  ui.innerHTML = `<div class="pg-picker card"><h2>Playground</h2><p>Pick a game to try:</p>${list.map(link).join('') || '<p>No games yet. Make one with <code>npm run new my-game</code>.</p>'}</div>`;
+  ui.innerHTML = `<div class="pg-picker card"><h2>Playground</h2><p>Pick a game to try:</p>${list.map(link).join('') || '<p>No games yet. Make one with <code>npm run new my-game</code>.</p>'}<p><a href="?sounds">The sound library</a>: every sound and music loop a game can play.</p></div>`;
+}
+
+// The sound library (npm run sounds): every sound with a button for each of its takes, the loops
+// with a button to loop them, and the music, searchable by name and words. Clicking a name copies
+// the line that plays it.
+async function showSounds() {
+  const lib = (await import('../shared/sounds/library.json')).default;
+  const secs = (s) => (s < 10 ? s.toFixed(1) : Math.round(s)) + ' s';
+  const sound = ([name, s]) =>
+    `<div class="pg-sound" data-words="${esc(`${name} ${s.tags}`)}"><button type="button" class="pg-name" data-copy="mm.sound('${name}')" title="Copy mm.sound('${name}')">${esc(name)}</button>
+      <span class="pg-takes">${s.takes.map((t, i) => `<button type="button" data-play="${esc(name)}" data-take="${i + 1}" title="Take ${i + 1}: ${secs(t[1])}">${s.takes.length > 1 ? i + 1 : '▶'}</button>`).join('')}${
+        s.loop ? `<button type="button" class="pg-loop" data-loop="${esc(name)}">loop</button>` : ''
+      }</span><small>${secs(s.takes[0][1])}${s.takes.length > 1 ? ` · ${s.takes.length} takes` : ''}</small></div>`;
+  const track = ([name, m]) =>
+    `<div class="pg-sound" data-words="${esc(`${name} ${m.tags}`)}"><button type="button" class="pg-name" data-copy="mm.music('${name}')" title="Copy mm.music('${name}')">${esc(name)}</button>
+      <span class="pg-takes"><button type="button" class="pg-loop" data-music="${esc(name)}">play</button></span><small>${secs(m.dur)} · ${esc(m.mood)}</small></div>`;
+  const groups = {};
+  for (const entry of Object.entries(lib.sounds)) (groups[entry[0].split('/')[0]] ??= []).push(entry);
+  ui.innerHTML = `<div class="pg-picker pg-sounds card">
+    <h2>The sound library</h2>
+    <p>${Object.keys(lib.sounds).length} sounds and ${Object.keys(lib.music).length} music loops your game can play (see "Sounds and music" in docs/making-games.md). Press a number to hear that take, a name to copy the line that plays it.</p>
+    <input class="pg-search" type="search" placeholder="Search: coin, splash, whoosh, spooky, win…" aria-label="Search sounds">
+    <h3>Music</h3>${Object.entries(lib.music).map(track).join('')}
+    ${Object.entries(groups).map(([cat, list]) => `<h3>${esc(cat)}/</h3>${list.map(sound).join('')}`).join('')}
+    <p class="pg-credits">All free to use (CC0), from: ${lib.sources.map((s) => `<a href="${esc(s.page)}" target="_blank" rel="noopener">${esc(s.title)}</a> (${esc(s.author)})`).join(', ')}.</p>
+  </div>`;
+  const box = ui.querySelector('.pg-sounds');
+  box.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.play) playSound(b.dataset.play, { take: Number(b.dataset.take) }, { patience: Infinity });
+    if (b.dataset.copy) {
+      navigator.clipboard?.writeText(b.dataset.copy);
+      b.classList.add('copied');
+      setTimeout(() => b.classList.remove('copied'), 900);
+    }
+    for (const [attr, start, stop] of [
+      ['music', (n) => setMusic(n), () => setMusic(null)],
+      ['loop', (n) => setLoop('listen', n), () => setLoop('listen', null)],
+    ]) {
+      if (!b.dataset[attr]) continue;
+      const on = !b.classList.contains('on');
+      for (const other of box.querySelectorAll(`[data-${attr}].on`)) other.classList.remove('on');
+      b.classList.toggle('on', on);
+      on ? start(b.dataset[attr]) : stop();
+    }
+  });
+  box.querySelector('.pg-search').addEventListener('input', (e) => {
+    const words = e.target.value.toLowerCase().split(/\s+/).filter(Boolean);
+    for (const row of box.querySelectorAll('.pg-sound')) row.hidden = !words.every((w) => row.dataset.words.includes(w));
+    for (const h of box.querySelectorAll('h3')) {
+      let n = h.nextElementSibling;
+      let any = false;
+      while (n && n.tagName !== 'H3' && n.classList.contains('pg-sound')) {
+        any ||= !n.hidden;
+        n = n.nextElementSibling;
+      }
+      h.hidden = !any;
+    }
+  });
 }
 
 function showError(message) {

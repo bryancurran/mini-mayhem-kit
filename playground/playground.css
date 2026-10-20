@@ -99,3 +99,81 @@
     bottom: 64px;
   }
 }
+
+/* The sound library (?sounds). */
+.pg-sounds {
+  width: min(760px, calc(100% - 32px));
+}
+
+.pg-search {
+  width: 100%;
+  margin: 4px 0 6px;
+  padding: 8px 12px;
+  border: 2.5px solid var(--line);
+  border-radius: 12px;
+  font: inherit;
+}
+
+.pg-sounds h3 {
+  margin: 16px 0 4px;
+}
+
+.pg-sound {
+  display: grid;
+  grid-template-columns: minmax(0, 15em) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid #ece5f4;
+}
+
+.pg-sound small {
+  color: var(--ink-soft);
+  font-weight: 600;
+  text-align: right;
+}
+
+.pg-name {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: 700 14px var(--font);
+  color: var(--ink);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: copy;
+}
+
+.pg-name.copied::after {
+  content: ' ✓ copied';
+  color: #2fbf55;
+}
+
+.pg-takes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pg-takes button {
+  min-width: 28px;
+  padding: 2px 6px;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #f4effa;
+  font: 700 12px var(--font);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.pg-takes .pg-loop.on {
+  background: #ffcc33;
+}
+
+.pg-credits {
+  margin-top: 18px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}

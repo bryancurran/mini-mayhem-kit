@@ -9,6 +9,8 @@ export async function startPlayground({ port = 5173, host = false, quiet = false
   const server = await createServer({
     root: path.join(ROOT, 'playground'),
     configFile: false,
+    // (Where the sound library's files come from: Mini Mosh's server, see playground/main.js.)
+    define: { 'import.meta.env.MM_SERVER': JSON.stringify(process.env.MM_SERVER || 'https://minimosh.io/') },
     logLevel: quiet ? 'silent' : 'warn',
     clearScreen: false,
     server: { port, host, strictPort: false, fs: { allow: [ROOT] } },

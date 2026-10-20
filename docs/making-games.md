@@ -461,7 +461,7 @@ mm.sun({ pos, target })
 mm.camera({ pos, look, fov, safe, snap, smooth })
 mm.burst({ pos, count, speed, up, life, size, gravity, colors })
 mm.ripple({ pos, size, life })
-mm.sound(name, ...numbers)
+mm.sound(name, { volume, pitch, take, pan })   (and mm.music, mm.loop: see "Sounds and music")
 ```
 
 - `mm.world`: each part can be added once. `water` is a sea of gently rolling waves at height
@@ -498,9 +498,60 @@ mm.sound(name, ...numbers)
 - `mm.ripple`: a white ring that spreads out over the water and fades (`size` 3.5 and `life` 1.2
   by default): with a burst of white and pale blue and the `splash` sound for something falling
   in.
-- `mm.sound` names: click, join, leave, ready, countdown, go, bump, dash, fall, jump,
-  boing, pop, hop, miss, ouch, splat, wiggle, crash, creak, shatter, checkpoint, splash,
-  warn, rumble, tick, bongo, thud, step, slice, collect, whistle, win, lose.
+- `mm.sound`: see "Sounds and music", next.
+
+### Sounds and music
+
+```js
+mm.sound(name, { volume, pitch, take, pan })   // a sound from the library, once: 'hit/wood-heavy'
+mm.music(name, { volume })                      // a music loop: 'happy-adventure' (null: fade it out)
+mm.loop(key, name, { volume, pitch })           // a looping sound under a key of yours (null: stop it)
+```
+
+Mini Mosh has a sound library: over 1,100 sounds (2,000 recordings) and 78 music loops, all free
+for anyone to use (CC0), kept on the server. Games name the ones they want; nobody uploads a
+sound. **Listen to them with `npm run sounds`** (a page in the playground: search, play every
+take, try the music), or find them from the terminal with `npm run sounds -- coin` (any words:
+it lists the names, how many takes and how long). A sound's name is `category/what-it-is`:
+
+| Category | What's in it |
+|---|---|
+| `hit/`, `break/`, `boom/` | impacts (wood, metal, glass, plate, punch, soft), breaking and falling, explosions, bangs, fireworks |
+| `step/` | footsteps on wood, grass, snow, carpet, concrete |
+| `water/`, `slime/`, `mud/` | splashes, bubbles, squishes, squelches |
+| `creature/` | cute critters, monsters, aliens, bugs, roars, burps, snores |
+| `retro/`, `synth/`, `digital/` | 8-bit and electronic: coins, jumps, power-ups, lasers, blips, explosions, alarms (512 in `retro/` alone) |
+| `ui/`, `button/` | clicks, switches, selects, confirmations, errors, pops |
+| `voice/`, `fighter/` | an announcer: `voice/ready`, `voice/go`, `voice/one` to `voice/ten`, `voice/you-win`, `voice/final-round`, `voice/hurry-up` (each with a `-male` version); `fighter/` is an arcade announcer (`fighter/fight`, `fighter/round-1`, `fighter/flawless-victory`) |
+| `jingle/` | short musical stingers for a win, a loss or a level up, in five styles (`nes`, `sax`, `pizzicato`, `steel-drum`, `hit`) |
+| `casino/`, `item/`, `rpg/`, `foley/`, `magic/`, `scifi/`, `weird/` | cards, dice and chips; coins, gems, books, doors, keys; tools, springs, bells; spells; engines, force fields; odd noises |
+| `ambience/` | loops: rain, water, bubbles, machines, alarms, fireworks |
+
+- **Takes.** Many sounds have several takes (recordings of the same kind of sound: `hit/wood-heavy`
+  has five). Each time it plays, one is picked at random (never the same twice running), a touch
+  higher or lower and louder or softer, so a sound played again and again doesn't sound like a
+  machine. `take: 3` plays that one, just as recorded, every time.
+- **Options:** `volume` (0 to 2, 1 as made), `pitch` (0.25 to 4: 2 is an octave up and twice as
+  fast), `pan` (-1 left to 1 right).
+- **Music:** `mm.music('happy-adventure')` plays one loop at a time, faded in; another name fades
+  across to it, and `null` fades it out. It stops when the game ends. The browser lists every loop
+  with words for its mood (upbeat, sporty, retro, calm, spooky, electronic, winter...). Keep it
+  under the action: `volume` 0.5 to 1.
+- **Loops:** `mm.loop('engine', 'retro/vehicle-engineloop', { pitch: 0.7 + speed * 0.05 })` every
+  frame plays a loop under that key and eases its volume and pitch to what you ask (so an engine
+  follows the speed); `null` stops it; up to 4 keys at once. Any sound can loop, but the ones made
+  for it (the browser marks them, and their names or tags say "loop": `ambience/`, `retro/...-loop`)
+  join seamlessly.
+- `mm.music` and `mm.loop` can be called every frame: they're sent only when something changes.
+- **Loading.** The sounds a game uses are fetched while it's up next in the lobby, so they play
+  straight away, as long as each name is written out in quotes in view.js (`'hit/wood-heavy'`, and
+  `mm.music('...')`). A name built from pieces (`'hit/' + kind`) still works, but loads the first
+  time it's played, and is skipped that time if it takes too long.
+- `npm run check` warns about names that aren't in the library.
+- The built-in synthesized sounds are still there, by their one-word names: click, join, leave,
+  ready, countdown, go, bump, dash, fall, jump, boing, pop, hop, miss, ouch, splat, wiggle, crash,
+  creak, shatter, checkpoint, splash, warn, rumble, tick, bongo, thud, step, slice, collect,
+  whistle, win, lose (`mm.sound(name, ...numbers)`). The library sounds richer: use it.
 
 ### HUD
 
@@ -605,7 +656,7 @@ People who join or refresh mid-game get the confirmed state and every input sinc
 | time per call | 50 ms per server tick, 250 ms per browser frame |
 | sustained time | 100 ms per second on the server; 70% of a browser's time |
 | state | 256 KB as JSON |
-| drawing | 6000 nodes, 2000 materials, textures and geometries, 96 textures (up to 1024²), 1.5 M vertices, 200 labels, 4 MB of commands per frame, 8 sounds per frame |
+| drawing | 6000 nodes, 2000 materials, textures and geometries, 96 textures (up to 1024²), 1.5 M vertices, 200 labels, 4 MB of commands per frame, 8 sounds per frame, 4 loops and 1 music at once |
 | instances | 4096 copies each, 20000 in all, 3 M vertices across them (copies × the shape's vertices) |
 | inputs | 60 per second per player (a press and its release are two) |
 | typing | 100 characters at a time (`maxLength`) |

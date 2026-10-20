@@ -7,6 +7,7 @@ import { MINIGAMES } from '../../../shared/minigames.js';
 import { disposeScene } from '../gfx.js';
 import { isTouchDevice } from '../input.js';
 import { sfx } from '../sfx.js';
+import { preloadSounds } from '../sounds.js';
 import { loadPackage } from './catalog.js';
 import { Controls } from './controls.js';
 import { Hud } from './hud.js';
@@ -119,6 +120,7 @@ class ScriptedView {
   async boot() {
     try {
       const [{ loadQuickJS }, pkg] = await Promise.all([import('./quickjs.js'), loadPackage(this.id, this.ctx.version)]);
+      preloadSounds(pkg.files['view.js']); // (already on their way if it was up next in the lobby)
       const QuickJS = await loadQuickJS();
       if (this.disposed) return;
       this.manifest = pkg.manifest;
