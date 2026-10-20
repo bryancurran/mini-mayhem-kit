@@ -49,7 +49,15 @@ class ScriptedView {
     const hint = this.isPlaying && meta ? (isTouchDevice ? meta.controls.touch : meta.controls.keyboard) : null;
     this.hud = new Hud(ctx.hudRoot, { players: this.players, hint });
     if (!this.isPlaying) this.hud.banner('Spectating · you’ll play next round', { style: 'info' });
-    this.host = new SceneHost(this.scene, this.camera, { hud: this.hud, onBadCommand: (msg) => console.warn(`[${id}] ${msg}`) });
+    this.turn = 0; // mm.controls({ turn }), kept for the controls once they're made
+    this.host = new SceneHost(this.scene, this.camera, {
+      hud: this.hud,
+      onBadCommand: (msg) => console.warn(`[${id}] ${msg}`),
+      onControls: (o) => {
+        if (Number.isInteger(o?.turn)) this.turn = ((o.turn % 4) + 4) % 4;
+        if (this.controls) this.controls.turn = this.turn;
+      },
+    });
     // Things are drawn one tick of the rules late, gliding between ticks (see SceneHost).
     this.host.glideMs = Math.min(100, 1000 / this.rate);
 
@@ -139,7 +147,8 @@ class ScriptedView {
       this.host.apply(JSON.parse(commands));
       this.hud.buttonLabel = pkg.manifest.input.touchLabel ?? 'READY';
       if (this.isPlaying && !this.over) {
-        this.controls = new Controls({ input: this.ctx.input, hudRoot: this.ctx.hudRoot, hud: this.hud, spec: pkg.manifest.input, clock: () => Math.round(this.gameMs()) });
+        this.controls = new Controls({ input: this.ctx.input, hudRoot: this.ctx.hudRoot, hud: this.hud, spec: pkg.manifest.input, clock: () => Math.floor(this.gameMs()) }); // never ahead of now, or it waits a frame
+        this.controls.turn = this.turn;
       }
       this.ready = true;
     } catch (e) {

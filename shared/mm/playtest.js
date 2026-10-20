@@ -14,7 +14,7 @@ import { Sandbox } from './sandbox.js';
 // the game started, ended, placed everyone, kept plain data, drew valid commands, and came out
 // the same on every simulated machine (and again when replayed from scratch).
 
-const OPS = new Set(['new', 'set', 'del', 'inst', 'ibulk', 'mat', 'rset', 'tex', 'geo', 'free', 'bake', 'camera', 'world', 'burst', 'ripple', 'sound', 'hud']);
+const OPS = new Set(['new', 'set', 'del', 'inst', 'ibulk', 'cbulk', 'mat', 'rset', 'tex', 'geo', 'free', 'bake', 'camera', 'world', 'burst', 'ripple', 'sound', 'hud', 'controls']);
 // Half the simulated players are on a laptop, half on a phone held upright.
 const screen = (width, height, top, bottom) => ({
   width,

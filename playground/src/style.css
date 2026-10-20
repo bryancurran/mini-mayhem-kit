@@ -853,6 +853,28 @@ input:focus {
     var(--c);
 }
 
+/* A screenshot of the game being played, across the top (a game without one has the band in its
+   color instead, as does one whose picture won't load). */
+.vc-shot {
+  align-self: stretch;
+  aspect-ratio: 16 / 9;
+  margin: 0 -16px 4px;
+  overflow: hidden;
+  border-bottom: 3px solid var(--line);
+  background: var(--c);
+}
+
+.vc-shot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.vc-shot.missing img {
+  display: none;
+}
+
 .vc-name {
   font-size: 22px;
   line-height: 1.1;
@@ -940,6 +962,13 @@ input:focus {
   paint-order: stroke fill;
 }
 
+/* With its screenshot behind, the name along the bottom. */
+.vote-square.has-shot {
+  place-items: end center;
+  padding-bottom: 6px;
+  background: linear-gradient(#0000 45%, #2a184099), var(--shot) center / cover, var(--c);
+}
+
 .vote-square .voter {
   position: absolute;
   right: -8px;
@@ -993,6 +1022,35 @@ input:focus {
   .vc-band {
     height: 14px;
     margin-bottom: 2px;
+  }
+
+  /* The screenshot beside the name and what's under it, so the three cards fit on the screen. */
+  .vote-card:has(.vc-shot) {
+    display: grid;
+    grid-template-columns: 118px minmax(0, 1fr);
+    align-content: start;
+    gap: 3px 12px;
+    padding: 10px 12px 8px 10px;
+  }
+
+  .vote-card:has(.vc-shot) > * {
+    grid-column: 2;
+  }
+
+  .vote-card .vc-shot {
+    grid-column: 1;
+    grid-row: 1 / span 4;
+    align-self: start;
+    margin: 0;
+    border: 3px solid var(--line);
+    border-radius: 12px;
+  }
+
+  .vote-card:has(.vc-shot) .vc-tag {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
   }
 
   .vc-name {

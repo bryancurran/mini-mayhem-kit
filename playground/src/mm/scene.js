@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Avatar, outfitFor } from '../avatar.js';
+import { MoshCrowd } from '../crowd.js';
 import { addClouds, addLights, addSky, addWater, noOutline, toon } from '../gfx.js';
 import { Particles, Ripples } from '../particles.js';
 import { sfx } from '../sfx.js';
@@ -36,6 +37,9 @@ const LIMITS = {
   instances: 20_000, // copies across every mm.instances
   instancesEach: 4096,
   instanceVertices: 3_000_000, // copies times the vertices of their shape, across them all
+  crowd: 2000, // little Moshes across every mm.crowd
+  linePoints: 2000,
+  stars: 2000,
 };
 const COLOR = /^#[0-9a-f]{3,8}$/i;
 // Properties packed by the sandbox's drawing kit (pack in prelude-view.js) carry the numbers in
@@ -70,6 +74,9 @@ class BadCommand extends Error {}
 const num = (v, lo, hi, def) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : def);
 const color = (v, def = '#ffffff') => (typeof v === 'string' && COLOR.test(v) ? v : def);
 const BIG = 1e5;
+// A crowd Mosh's numbers (see dance), and what each is until it's sent.
+const CROWD_NUMBERS = ['x', 'y', 'z', 'yaw', 'scale', 'sway', 'bounce', 'step', 'arms', 'reach', 'spin'];
+const CROWD_DEFAULTS = [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0];
 
 function vec3(v, def) {
   if (!Array.isArray(v) || v.length !== 3) return def;
@@ -206,8 +213,17 @@ const OUTLINE_WIDTH = 0.022; // world units, at scale 1
 const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 
 class InstanceSet {
-  constructor(geometry, material, count, { outline, shadow }) {
+  constructor(geometry, material, count, { outline, shadow, colorEase = 0 }) {
     this.count = count;
+    // Colors that ease to where they're set (per second), rather than jump: colorTo is where
+    // each copy is heading, colorNow where it's got to, fading the copies on their way.
+    this.colorEase = colorEase;
+    if (colorEase) {
+      this.colorTo = new Float32Array(count * 3);
+      this.colorNow = new Float32Array(count * 3);
+      this.colorSet = new Uint8Array(count);
+      this.fading = new Set();
+    }
     this.mesh = new THREE.InstancedMesh(geometry, material, count);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.frustumCulled = false; // its bounds would be where the copies started
@@ -283,7 +299,20 @@ class InstanceSet {
     for (let j = 0; j < 10 && !moved; j++) moved = Math.abs(next[j] - this.to[o + j]) > 1e-6;
     if (p.color) {
       const first = !this.mesh.instanceColor;
-      this.mesh.setColorAt(i, tmpColor.set(p.color));
+      tmpColor.set(p.color);
+      if (this.colorEase) {
+        tmpColor.toArray(this.colorTo, i * 3);
+        // The first color, or a snap, shows at once; later ones ease in.
+        if (!this.colorSet[i] || p.snap) {
+          tmpColor.toArray(this.colorNow, i * 3);
+          this.fading.delete(i);
+        } else {
+          this.fading.add(i);
+          tmpColor.fromArray(this.colorNow, i * 3);
+        }
+        this.colorSet[i] = 1;
+      }
+      this.mesh.setColorAt(i, tmpColor);
       this.mesh.instanceColor.needsUpdate = true;
       if (first) this.mesh.material.needsUpdate = true; // its shader starts using copies' colors
     }
@@ -313,10 +342,26 @@ class InstanceSet {
     this.write(i);
   }
 
-  step(clock) {
+  step(clock, dt) {
     for (const i of this.moving) {
       if (!this.advance(i, clock)) this.moving.delete(i);
       this.write(i);
+    }
+    if (this.fading?.size) {
+      const k = 1 - Math.exp(-this.colorEase * dt);
+      for (const i of this.fading) {
+        let left = 0;
+        for (let j = i * 3; j < i * 3 + 3; j++) {
+          this.colorNow[j] += (this.colorTo[j] - this.colorNow[j]) * k;
+          left = Math.max(left, Math.abs(this.colorTo[j] - this.colorNow[j]));
+        }
+        if (left < 0.002) {
+          this.colorNow.set(this.colorTo.subarray(i * 3, i * 3 + 3), i * 3);
+          this.fading.delete(i);
+        }
+        this.mesh.setColorAt(i, tmpColor.fromArray(this.colorNow, i * 3));
+      }
+      this.mesh.instanceColor.needsUpdate = true;
     }
     if (this.dirty) {
       this.mesh.instanceMatrix.needsUpdate = true;
@@ -348,11 +393,12 @@ function numbers(list, max, name) {
 }
 
 export class SceneHost {
-  constructor(scene, camera, { hud, onBadCommand }) {
+  constructor(scene, camera, { hud, onBadCommand, onControls }) {
     this.scene = scene;
     this.camera = camera;
     this.hud = hud;
     this.onBadCommand = onBadCommand;
+    this.onControls = onControls;
     this.nodes = new Map(); // id -> { obj, kind, ownGeometry, avatar, mode, speed, label }
     this.resources = new Map(); // id -> { kind, value }
     this.shapeCache = new Map();
@@ -363,6 +409,7 @@ export class SceneHost {
     this.instances = 0; // copies across every instances node
     this.instanceVertices = 0;
     this.instanceSets = new Set();
+    this.crowdCount = 0; // little Moshes across every crowd node
     this.worldDone = new Set();
     this.particles = null;
     this.ripples = null;
@@ -409,7 +456,7 @@ export class SceneHost {
         if (!Array.isArray(c)) throw new BadCommand('not a command');
         const [op, a, b, d, e, f] = c;
         if (op === 'new') unfix(d);
-        else if (op === 'set' || op === 'rset' || op === 'mat' || op === 'ibulk') unfix(b);
+        else if (op === 'set' || op === 'rset' || op === 'mat' || op === 'ibulk' || op === 'cbulk') unfix(b);
         else if (op === 'camera' || op === 'burst' || op === 'ripple') unfix(a);
         else if (op === 'inst' && Array.isArray(b)) for (const entry of b) if (Array.isArray(entry)) unfix(entry[1]);
         if (op === 'new') this.create(a, b, d ?? {});
@@ -417,6 +464,8 @@ export class SceneHost {
         else if (op === 'del') this.remove(a);
         else if (op === 'inst') this.place(this.node(a), b);
         else if (op === 'ibulk') this.placeMany(this.node(a), b ?? {});
+        else if (op === 'cbulk') this.dance(this.node(a), b ?? {});
+        else if (op === 'controls') this.onControls?.(a ?? {});
         else if (op === 'mat') this.addResource(a, 'material', this.makeMaterial(b ?? {}));
         else if (op === 'rset') this.updateResource(a, b ?? {});
         else if (op === 'tex') this.addResource(a, 'texture', this.makeTexture(b, d, e, f));
@@ -496,6 +545,19 @@ export class SceneHost {
       n.label = el;
     } else if (kind === 'instances') {
       this.makeInstances(n, props);
+    } else if (kind === 'crowd') {
+      const max = Math.round(num(props.max, 1, LIMITS.crowd, 50));
+      if (this.crowdCount + max > LIMITS.crowd) throw new BadCommand(`too many crowd Moshes (at most ${LIMITS.crowd} in all)`);
+      this.crowdCount += max;
+      n.obj = new THREE.Group();
+      n.max = max;
+      n.crowd = new MoshCrowd(n.obj, max, { shadows: props.shadow !== false });
+      // Each Mosh's numbers and colors as last sent (see dance).
+      n.dancers = { shown: 0, num: new Float32Array(max * CROWD_NUMBERS.length), color: [], dark: [], hat: [] };
+      for (let i = 0; i < max; i++) n.dancers.num.set(CROWD_DEFAULTS, i * CROWD_NUMBERS.length);
+    } else if (kind === 'line') {
+      n.obj = new THREE.Line(new THREE.BufferGeometry(), noOutline(new THREE.LineBasicMaterial({ color: '#ffffff' })));
+      n.ownGeometry = null;
     } else {
       throw new BadCommand(`unknown node kind "${String(kind).slice(0, 20)}"`);
     }
@@ -559,6 +621,7 @@ export class SceneHost {
       if (p.mode !== undefined && AVATAR_MODES.has(p.mode)) n.mode = p.mode;
       if (p.speed !== undefined) n.speed = num(p.speed, 0, 50, 0);
       if (p.crown !== undefined) n.avatar.setCrown(p.crown === true);
+      if (p.lean !== undefined) n.lean = num(p.lean, -Math.PI, Math.PI, 0);
       if (p.shadow !== undefined) {
         const s = p.shadow;
         n.obj.traverse((o) => {
@@ -566,6 +629,17 @@ export class SceneHost {
           o.castShadow = s === true || s === 'cast';
           o.receiveShadow = s === true || s === 'receive';
         });
+      }
+    } else if (n.kind === 'line') {
+      if (p.color !== undefined) o.material.color.set(color(p.color));
+      if (p.points !== undefined) {
+        const pts = numbers(p.points, LIMITS.linePoints * 3, 'points');
+        if (pts.length % 3) throw new BadCommand('line points: 3 numbers each');
+        const old = o.geometry.attributes.position?.count ?? 0;
+        this.vertices += pts.length / 3 - old;
+        o.geometry.dispose();
+        o.geometry = new THREE.BufferGeometry();
+        o.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
       }
     } else if (n.kind === 'label') {
       const el = n.label;
@@ -597,7 +671,7 @@ export class SceneHost {
     }
     // Its own material: the outline pass has to leave it alone, which a shared one can't.
     const material = noOutline(p.material !== undefined && !Array.isArray(p.material) ? this.materialRef(p.material).clone() : toon(color(p.color)));
-    n.instances = new InstanceSet(geometry, material, count, { outline: p.outline !== false, shadow: p.shadow });
+    n.instances = new InstanceSet(geometry, material, count, { outline: p.outline !== false, shadow: p.shadow, colorEase: num(p.colorEase, 0, 100, 0) });
     n.obj = n.instances.mesh;
     n.ownGeometry = ownGeometry;
     n.count = count;
@@ -675,6 +749,53 @@ export class SceneHost {
     }
   }
 
+  // ['cbulk', id, { from, shown, pos: [x, y, z, ...], yaw, scale, sway, bounce, step, arms, reach,
+  // spin: [one each], color, dark, hat: ['#hex' (or null for no hat), ...] }]: the crowd's little
+  // Moshes from Mosh `from` on, each kept as last sent; `shown` of them are drawn.
+  dance(n, d) {
+    if (n.kind !== 'crowd') throw new BadCommand('only crowds dance');
+    const D = n.dancers;
+    const F = CROWD_NUMBERS.length;
+    const from = Number.isInteger(d.from) ? Math.max(0, d.from) : 0;
+    const put = (key, per, at) => {
+      const v = d[key];
+      if (v === undefined) return;
+      if (!Array.isArray(v) || v.length % per || from + v.length / per > n.max) throw new BadCommand(`crowd ${key}: ${per} number${per > 1 ? 's' : ''} for each Mosh, within max`);
+      for (let j = 0; j < v.length / per; j++) for (let c = 0; c < per; c++) D.num[(from + j) * F + at + c] = num(v[j * per + c], -BIG, BIG, CROWD_DEFAULTS[at + c]);
+    };
+    put('pos', 3, 0);
+    for (let k = 3; k < F; k++) put(CROWD_NUMBERS[k], 1, k);
+    for (const key of ['color', 'dark', 'hat']) {
+      const v = d[key];
+      if (v === undefined) continue;
+      if (!Array.isArray(v) || from + v.length > n.max) throw new BadCommand(`crowd ${key}: a color for each Mosh, within max`);
+      for (let j = 0; j < v.length; j++) D[key][from + j] = v[j] === null ? null : color(v[j]);
+    }
+    if (Number.isInteger(d.shown)) D.shown = Math.max(0, Math.min(n.max, d.shown));
+    n.crowd.begin();
+    for (let i = 0; i < D.shown; i++) {
+      const o = i * F;
+      const c = D.color[i] ?? '#ffffff';
+      n.crowd.add({
+        x: D.num[o],
+        y: D.num[o + 1],
+        z: D.num[o + 2],
+        yaw: D.num[o + 3],
+        scale: D.num[o + 4],
+        sway: D.num[o + 5],
+        bounce: D.num[o + 6],
+        step: D.num[o + 7],
+        arms: D.num[o + 8],
+        reach: D.num[o + 9],
+        spin: D.num[o + 10],
+        color: c,
+        dark: D.dark[i] ?? c,
+        hat: D.hat[i] ?? null,
+      });
+    }
+    n.crowd.end();
+  }
+
   // parent: a group, or an avatar with part (see AVATAR_PARTS), which then carries the node as it
   // moves (a hat on its head, a flag in its hand).
   reparent(n, parentId, part) {
@@ -737,6 +858,20 @@ export class SceneHost {
       n.ownGeometry.dispose();
     }
     if (n.avatar) n.avatar.dispose();
+    if (n.crowd) {
+      this.crowdCount -= n.max;
+      for (const p of n.crowd.parts) {
+        p.mesh.material.dispose();
+        p.mesh.dispose();
+        p.shell?.material.dispose();
+        p.shell?.dispose();
+      }
+    }
+    if (n.kind === 'line') {
+      this.vertices -= n.obj.geometry.attributes.position?.count ?? 0;
+      n.obj.geometry.dispose();
+      n.obj.material.dispose();
+    }
     if (n.label) {
       // A label's element only leaves the page by itself when the label is the node removed.
       n.label.remove();
@@ -802,6 +937,7 @@ export class SceneHost {
     if (p.depthWrite !== undefined) mat.depthWrite = p.depthWrite !== false;
     if (p.side !== undefined) mat.side = p.side === 'double' ? THREE.DoubleSide : p.side === 'back' ? THREE.BackSide : THREE.FrontSide;
     if (p.emissive !== undefined && mat.emissive) mat.emissive.set(color(p.emissive, '#000000'));
+    if (p.blending !== undefined) mat.blending = p.blending === 'add' ? THREE.AdditiveBlending : THREE.NormalBlending;
     mat.needsUpdate = true;
   }
 
@@ -1039,7 +1175,19 @@ export class SceneHost {
   world(o) {
     const once = (key) => !this.worldDone.has(key) && this.worldDone.add(key);
     if (o.sky && once('sky')) addSky(this.scene);
-    if (o.lights && once('lights')) addLights(this.scene, { shadowSize: num(o.lights.shadowSize, 4, 200, 20) });
+    if (o.lights && once('lights')) {
+      const l = o.lights;
+      const sun = addLights(this.scene, { shadowSize: num(l.shadowSize, 4, 200, 20) });
+      // Moods other than daylight: the sky and ground light, and the sun's color, strength and
+      // place (relative to the middle of the scene).
+      const hemi = this.scene.children.find((c) => c.isHemisphereLight);
+      if (l.sky !== undefined) hemi.color.set(color(l.sky));
+      if (l.ground !== undefined) hemi.groundColor.set(color(l.ground));
+      if (l.ambient !== undefined) hemi.intensity = num(l.ambient, 0, 10, hemi.intensity);
+      if (l.sun !== undefined) sun.color.set(color(l.sun));
+      if (l.sunIntensity !== undefined) sun.intensity = num(l.sunIntensity, 0, 10, sun.intensity);
+      if (l.sunPos !== undefined) sun.position.fromArray(vec3(l.sunPos, [14, 30, 10]));
+    }
     if (o.clouds && once('clouds')) {
       const c = o.clouds;
       const minRadius = num(c.minRadius, 0, 400, 70);
@@ -1053,6 +1201,21 @@ export class SceneHost {
       });
     }
     if (o.water && once('water')) this.water = addWater(this.scene, num(o.water.y, -1000, 1000, 0));
+    if (o.stars && once('stars')) {
+      // Points of light all round, above the horizon, the same size however far.
+      const s = o.stars;
+      const count = Math.round(num(s.count, 1, LIMITS.stars, 500));
+      const radius = num(s.radius, 10, 1000, 150);
+      const pos = [];
+      for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const e = 0.15 + Math.random() * 1.2;
+        pos.push(Math.cos(a) * Math.cos(e) * radius, Math.sin(e) * radius, Math.sin(a) * Math.cos(e) * radius);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      this.scene.add(new THREE.Points(geo, noOutline(new THREE.PointsMaterial({ color: color(s.color, '#ffffff'), size: num(s.size, 0.5, 8, 1.4), sizeAttenuation: false }))));
+    }
     if (o.background !== undefined && once('background')) this.scene.background = new THREE.Color(color(o.background));
     if (Array.isArray(o.fog) && once('fog')) this.scene.fog = new THREE.Fog(color(o.fog[0]), num(o.fog[1], 0, 1e4, 50), num(o.fog[2], 0, 1e4, 300));
   }
@@ -1108,10 +1271,14 @@ export class SceneHost {
 
   tick(dt) {
     for (const g of this.gliding) if (!g.step(this.clock)) this.gliding.delete(g);
-    for (const set of this.instanceSets) set.step(this.clock);
+    for (const set of this.instanceSets) set.step(this.clock, dt);
     if (this.cameraGlide) this.camera.lookAt(this.cameraGlide.look.position);
     this.frameSafe();
-    for (const n of this.nodes.values()) if (n.avatar) n.avatar.update(dt, n.mode, n.speed);
+    for (const n of this.nodes.values()) {
+      if (!n.avatar) continue;
+      n.avatar.update(dt, n.mode, n.speed);
+      if (n.lean) n.avatar.torso.rotation.z += n.lean;
+    }
     this.particles?.update(dt);
     this.ripples?.update(dt);
     this.clouds?.update(dt);

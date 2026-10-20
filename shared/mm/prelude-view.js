@@ -19,6 +19,7 @@
   const dirty = new Map(); // node id -> properties changed this frame (sent at the end)
   const placed = new Map(); // instances node id -> Map(copy -> properties changed this frame)
   let camera = null;
+  let lastControls = null; // mm.controls as last sent
   const hudLast = {}; // last value sent per HUD part, so unchanged ones aren't resent
   let nextId = 1;
 
@@ -128,6 +129,20 @@
     return this;
   };
 
+  // Lots of little Moshes at once (dancers, guests, an audience): { max, shadow, parent, pos }.
+  // Each frame .update({ shown, pos: [x, y, z, ...], yaw, scale, sway, bounce, step, arms, reach,
+  // spin, color, dark, hat }) places them: see docs/making-games.md.
+  function Crowd(props) {
+    Node.call(this, 'crowd', props);
+  }
+  Crowd.prototype = Object.create(Node.prototype);
+  Crowd.prototype.update = function (data) {
+    if (!this.alive || !data) return this;
+    flush();
+    out.push(['cbulk', this.id, pack(data)]);
+    return this;
+  };
+
   function Resource(kind) {
     this.__mm = kind;
     this.id = nextId++;
@@ -192,6 +207,18 @@
     // { shape | geometry, color | material, count, shadow, outline, parent }: place copies with
     // .update({ pos: [...], ... }) (many at once) or .at(i, { pos, rot, scale, color, visible }).
     instances: (props) => new Instances(props),
+    crowd: (props) => new Crowd(props),
+    // A thin line through points: { points: [x, y, z, ...], color, parent, pos } (a wire, a laser).
+    line: (props) => new Node('line', props),
+    // How the controls behave: { turn } adds quarter turns clockwise to every direction the
+    // player gives, for a camera that looks along another axis (up on screen is then right on the
+    // floor). Sent only when it changes.
+    controls(options) {
+      const text = JSON.stringify(options || {});
+      if (text === lastControls) return;
+      lastControls = text;
+      out.push(['controls', options || {}]);
+    },
 
     material(props) {
       const r = new Resource('material');

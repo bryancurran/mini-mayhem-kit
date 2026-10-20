@@ -85,6 +85,12 @@ starts, so a player who holds a direction through the countdown sets off straigh
 There's no mouse aiming or free-form pointer input on purpose: every game has to play the
 same on a phone, a keyboard and a gamepad.
 
+Directions are as the player sees them: up is up on the screen. A view whose camera looks along
+another axis (a board turned sideways to fit a phone held upright) turns them to match with
+`mm.controls({ turn: 1 })` in view.js: every direction and stick a player gives is turned that
+many quarter turns clockwise (up becomes right) before it's sent, so the rules get directions on
+the board. Call it again when the camera turns back (`turn: 0`).
+
 ### Typing games
 
 A game can ask for typing instead: `"input": { "text": "enter" }`. Players get a text box along
@@ -304,7 +310,9 @@ mm.group({ pos, rot, scale, parent, part, visible })
 mm.mesh({ shape | geometry, color | material, pos, rot, scale, parent, part, visible, shadow })
 mm.avatar({ color, mode, speed, crown, shadow, pos, rot, scale, parent, part })   // a Mosh, the players' character
 mm.label({ text, style: 'tag' | 'me' | 'float', tone: 'good' | 'great' | 'bad', color, pos, opacity, parent, part })
-mm.instances({ shape | geometry, color | material, count, shadow, outline, pos, rot, scale, parent, part })
+mm.instances({ shape | geometry, color | material, count, shadow, outline, colorEase, pos, rot, scale, parent, part })
+mm.crowd({ max, shadow, pos, parent })           // lots of little Moshes at once (a conga line, an audience)
+mm.line({ points: [x, y, z, ...], color, pos, parent })   // a thin line (a wire, a laser)
 ```
 
 `mm.instances` draws many copies of one shape at once (a crowd, coins, debris, a field of grass)
@@ -318,7 +326,23 @@ for the price of one node. Each copy shows once it's placed:
 - `count`: up to 4096 copies each, 20000 in all.
 - `color` on a copy tints it: start from a white `color` for copies in different colors.
 - `outline: false` leaves the cartoon outline off.
+- `colorEase: n`: copies' colors ease to the color they're given at `n` per second (a fade)
+  instead of jumping, for a floor that lights up under players and fades behind them; `snap:
+  true` on a copy or an update still jumps. A copy's first color always shows at once.
 - Copies can't be baked: keep them out of groups you `mm.bake`.
+
+`mm.crowd` draws up to `max` little Moshes (simpler than `mm.avatar`, and all of them together
+cost about what one node does): party guests, the dancers in a conga line, an audience. Every
+frame, `.update({ shown, pos, yaw, scale, sway, bounce, step, arms, reach, spin, color, dark,
+hat })` places the first `shown` of them, from Mosh `from` (0) on:
+- `pos`: 3 numbers a Mosh (`[x0, y0, z0, x1, ...]`, feet on y); `yaw` (radians, facing),
+  `scale` (1 is about an avatar's size), `sway` (leaning side to side), `bounce` (a hop up),
+  `step` (-1 to 1: which foot is up), `arms` (0 at the sides to 1 up in the air), `reach` (0 to
+  1: hands held out in front, conga style) and `spin` (tumbling, radians): 1 number a Mosh.
+- `color` (its body), `dark` (its feet) and `hat` (a cone hat's color, or `null` for none): 1
+  color a Mosh.
+- Anything left out keeps what it was last sent, so send the colors only when they change.
+- `max` up to 2000 in all.
 
 Labels: `style: 'tag'` is a name tag in the player's `color`, `'me'` the same tag filled in with it
 (for "YOU" over your own Mosh), and `'float'` floating text in a `tone`.
@@ -355,17 +379,19 @@ Labels: `style: 'tag'` is a name tag in the player's `color`, `'me'` the same ta
 - `color`: a hex color, giving the standard cartoon material.
 - `material`: a handle from `mm.material(...)`, or an array of them for meshes with groups.
 - avatar `mode`: `idle`, `happy`, `run`, `jump`, `fall`, `stuck`, `swim`, `balance`,
-  `sleep` or `cheer`; `speed` sets the run pace.
+  `sleep` or `cheer`; `speed` sets the run pace; `lean` (radians) sways its body to one side on
+  top of the animation (dancing to a beat).
 
 ```js
-mm.material({ color, texture, repeat: [u, v], opacity, transparent, depthWrite, side: 'double', emissive, unlit, outline })
+mm.material({ color, texture, repeat: [u, v], opacity, transparent, depthWrite, side: 'double', emissive, unlit, outline, blending: 'add' })
 mm.texture(width, height, (g, w, h) => { g.fillStyle = '#f00'; g.fillRect(0, 0, w, h); }, { repeat: true, pixelated: false })
 mm.geometry({ positions, ... })
 mm.bake(group)
 ```
 
 - **Materials:** `.set()` changes a material, for example to fade its opacity. `.dispose()`
-  frees it.
+  frees it. `blending: 'add'` adds its color to what's behind (light beams, glows; with
+  `opacity`, `depthWrite: false` and `unlit`).
 - **Geometry:** `.set({ positions })` on a handle from `mm.geometry` moves its vertices
   (the same number of them) for something that ripples or bends, like a flag in the wind; the
   normals follow. It's much cheaper than a new geometry every frame. Send them only when they
@@ -386,7 +412,7 @@ mm.bake(group)
 ### World, camera, effects, sound
 
 ```js
-mm.world({ sky: true, lights: { shadowSize }, clouds: { count, minRadius, maxRadius, minY, maxY }, water: { y }, background: '#hex', fog: ['#hex', near, far] })
+mm.world({ sky: true, lights: { shadowSize, sky, ground, ambient, sun, sunIntensity, sunPos }, clouds: { count, minRadius, maxRadius, minY, maxY }, water: { y }, stars: { count, radius, size, color }, background: '#hex', fog: ['#hex', near, far] })
 mm.camera({ pos, look, fov, safe, snap, smooth })
 mm.burst({ pos, count, speed, up, life, size, gravity, colors })
 mm.ripple({ pos, size, life })
@@ -395,6 +421,11 @@ mm.sound(name, ...numbers)
 
 - `mm.world`: each part can be added once. `water` is a sea of gently rolling waves at height
   `y`, out to the horizon: for arenas floating over water (Bumper Bash, Flag Frenzy).
+- `lights`: daylight unless you say otherwise: `sky` and `ground` (the colors of the light from
+  above and below), `ambient` (its strength, 1.6), and the sun's color (`sun`), strength
+  (`sunIntensity`, 2.2) and place (`sunPos`, `[14, 30, 10]`), for a night or a sunset.
+- `stars`: points of light all round, above the horizon, the same size however far (`count`
+  500, `radius` 150, `size` 1.4 px), for a night sky (with a dark `background`).
 - `mm.camera`: `fov` is the vertical field of view in degrees. With `safe: true`, the picture is
   framed on the part of the screen the HUD leaves free (`view.screen.safe`): the camera looks at
   the middle of that area and `fov` spans its height, while the scene still shows behind the

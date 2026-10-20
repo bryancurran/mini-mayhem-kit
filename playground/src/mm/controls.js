@@ -15,6 +15,7 @@ const MOVE_KEYS = { u: [0, 1], d: [0, -1], l: [-1, 0], r: [1, 0] };
 const ONE_BUTTON_KEYS = new Set(['ArrowDown', 'KeyS', 'ShiftLeft', 'ShiftRight']);
 const DEADZONE = 0.2;
 const SWIPE_PX = 24;
+const TURN_ORDER = 'urdl'; // clockwise
 const MOVE_EVERY_MS = 33; // the stick is reported at most this often
 const LIVE_EVERY_MS = 50; // and the text box's contents (input.text "live")
 
@@ -34,6 +35,7 @@ export class Controls {
     this.touchButton = false;
     this.lastMove = [0, 0];
     this.moveAt = -Infinity;
+    this.turn = 0; // quarter turns clockwise added to every direction (mm.controls({ turn }))
     this.cleanup = [];
 
     const on = (target, type, fn, opts) => {
@@ -98,6 +100,13 @@ export class Controls {
   }
 
   push(action) {
+    // A camera that looks along another axis turns the directions with it (mm.controls).
+    if (this.turn && action[0] === 'd') action = ['d', TURN_ORDER[(TURN_ORDER.indexOf(action[1]) + this.turn) % 4]];
+    if (this.turn && action[0] === 'm') {
+      let [x, y] = [action[1], action[2]];
+      for (let k = 0; k < this.turn; k++) [x, y] = [y, -x];
+      action = ['m', x || 0, y || 0];
+    }
     this.queue.push([this.clock(), action]);
   }
 

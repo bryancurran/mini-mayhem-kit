@@ -3,6 +3,27 @@
 `npm run update` gets the latest kit and prints what changed since yours. Uploads need the
 latest kit: Mini Mosh turns down games packed with an older one, and says how to update.
 
+## v8 (October 2026)
+
+- **Your own moves show the frame you press.** The controls stamped each press with the game
+  time rounded to the nearest millisecond, so about half of them were a fraction of a millisecond
+  ahead of the game and waited a frame to show. They're rounded down now.
+- **Other players' inputs arrive sooner.** The server passes every input on to everyone the
+  moment it comes in, rather than with its next tick (up to a sixtieth of a second sooner).
+- **`mm.crowd({ max })`**: lots of little Moshes at once, for the price of one node: party
+  guests, the dancers in a conga line, an audience. Place them all each frame with `.update({
+  shown, pos, yaw, scale, sway, bounce, step, arms, reach, spin, color, dark, hat })`.
+- **Floors that light up and fade:** `mm.instances({ colorEase })` eases copies' colors to the
+  ones they're given (`snap: true` still jumps).
+- **`mm.line({ points, color })`**: a thin line (a wire, a laser).
+- **Night scenes:** `mm.world({ stars })` and the light's colors and the sun's strength and place
+  in `lights` (`sky`, `ground`, `ambient`, `sun`, `sunIntensity`, `sunPos`).
+- **`blending: 'add'`** on materials, for light beams and glows.
+- **Dancing Moshes:** an avatar's `lean` sways its body on top of its animation.
+- **`mm.controls({ turn })`** turns every direction players give by quarter turns, for a camera
+  that looks along another axis (a board turned to fit a phone held upright).
+- Packages say `"kit": 8`. Uploads need kit v8: run `npm run update`.
+
 ## v7 (October 2026)
 
 - **Quicker in the browser, again.** Browsers now keep a copy of the predicted state as of each
