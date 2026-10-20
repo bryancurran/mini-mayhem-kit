@@ -66,6 +66,8 @@ const AVATAR_PARTS = {
 };
 const AVATAR_MODES = new Set(['idle', 'happy', 'run', 'jump', 'fall', 'stuck', 'swim', 'balance', 'sleep', 'cheer']);
 const LABEL_TONES = new Set(['good', 'great', 'bad']);
+// The vertices a game's geometry counts for against its limit (its morphs' too).
+const counted = (geo) => geo.userData.mmVertices ?? geo.attributes.position.count;
 const SOUNDS = new Set(Object.keys(sfx));
 // What a library sound, music or loop may be asked for with (sounds.js keeps them in range).
 const soundOptions = (o) => {
@@ -675,7 +677,7 @@ export class SceneHost {
     const r = this.resources.get(id);
     if (!r) return;
     this.resources.delete(id);
-    if (r.kind === 'geometry') this.vertices -= r.value.attributes.position.count;
+    if (r.kind === 'geometry') this.vertices -= counted(r.value);
     if (r.kind === 'texture') this.textures--;
     r.value.dispose();
   }
@@ -790,6 +792,13 @@ export class SceneHost {
       if (p.geometry !== undefined) {
         if (Number.isInteger(p.geometry)) this.setGeometry(n, this.resource(p.geometry, 'geometry'), false);
         else this.setGeometry(n, this.makeGeometry(p.geometry), true);
+        o.updateMorphTargets();
+      }
+      // morph: how far toward each of its geometry's morphs (0 none, 1 all the way; less than 0
+      // goes the other way).
+      if (p.morph !== undefined && o.morphTargetInfluences) {
+        const w = Array.isArray(p.morph) ? p.morph : [];
+        for (let i = 0; i < o.morphTargetInfluences.length; i++) o.morphTargetInfluences[i] = num(w[i], -10, 10, 0);
       }
       if (p.material !== undefined) {
         o.material = Array.isArray(p.material) ? p.material.slice(0, 32).map((m) => this.materialRef(m)) : this.materialRef(p.material);
@@ -1069,7 +1078,7 @@ export class SceneHost {
 
   setGeometry(n, geometry, own) {
     if (n.ownGeometry) {
-      this.vertices -= n.ownGeometry.attributes.position.count;
+      this.vertices -= counted(n.ownGeometry);
       n.ownGeometry.dispose();
     }
     n.ownGeometry = own ? geometry : null;
@@ -1105,7 +1114,7 @@ export class SceneHost {
       n.instances.shell?.dispose();
     }
     if (n.ownGeometry) {
-      this.vertices -= n.ownGeometry.attributes.position.count;
+      this.vertices -= counted(n.ownGeometry);
       n.ownGeometry.dispose();
     }
     if (n.avatar) n.avatar.dispose();
@@ -1303,6 +1312,20 @@ export class SceneHost {
     } else {
       geo.computeVertexNormals();
     }
+    // morphs: shapes to blend toward, each an offset for every vertex (x, y, z), added in
+    // proportion to a mesh's morph weights (a rope swinging, a flag waving between two shapes).
+    let extra = 0;
+    if (d.morphs !== undefined) {
+      if (!Array.isArray(d.morphs) || d.morphs.length > 8) throw new BadCommand('morphs: at most 8');
+      geo.morphAttributes.position = d.morphs.map((m) => {
+        const off = numbers(m, count * 3, 'morphs');
+        if (off.length !== count * 3) throw new BadCommand('morphs: x, y, z for each vertex, in each');
+        return new THREE.BufferAttribute(off, 3);
+      });
+      geo.morphTargetsRelative = true;
+      extra = count * d.morphs.length;
+      if (this.vertices + count + extra > LIMITS.vertices) throw new BadCommand('too much geometry');
+    }
     if (d.groups !== undefined) {
       if (!Array.isArray(d.groups) || d.groups.length > 32) throw new BadCommand('groups: at most 32');
       const total = geo.index ? geo.index.count : count;
@@ -1312,7 +1335,8 @@ export class SceneHost {
         geo.addGroup(start, n, mat);
       }
     }
-    this.vertices += count;
+    this.vertices += count + extra;
+    geo.userData.mmVertices = count + extra;
     return geo;
   }
 

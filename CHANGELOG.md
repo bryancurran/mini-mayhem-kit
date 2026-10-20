@@ -3,6 +3,18 @@
 `npm run update` gets the latest kit and prints what changed since yours. Uploads need the
 latest kit: Mini Mosh turns down games packed with an older one, and says how to update.
 
+## v14 (October 2026)
+
+- **Morphs:** `mm.geometry({ ..., morphs: [offsets, ...] })` and a mesh's `morph: [weights]` blend a
+  shape toward up to 8 others, for a few numbers a frame however big it is: ropes that swing,
+  flags that wave, anything that moves the same way each time (Tightrope Tumble's ropes).
+- **`alphaTest` on materials:** cut-outs from a see-through texture (a net, leaves, a fence) stay
+  crisp and clear from every angle.
+- **A balance dial:** `mm.hud.dial(value, { danger })`, a needle over a half-circle from -1 to 1
+  that pulses when you're about to fall (Tightrope Tumble).
+- `view.screen.safe` now leaves room for the race track along the top, your place and the dial.
+- Packages say `"kit": 14`. Uploads need kit v14: run `npm run update`.
+
 ## v13 (October 2026)
 
 - **A sound library:** over 1,100 sounds (2,000 recordings) and 78 music loops, all free to use

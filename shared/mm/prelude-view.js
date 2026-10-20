@@ -359,6 +359,12 @@
         if (typeof o.progress === 'number') o.progress = Math.round(Math.max(0, Math.min(1, o.progress)) * 1000) / 1000;
         send('ask', o);
       },
+      // A half-circle dial with a needle (balance): value from -1 (all the way left) to 1 (right),
+      // { danger: true } to pulse it; null hides it.
+      dial(value, options) {
+        const ok = typeof value === 'number' && Number.isFinite(value);
+        send('dial', ok ? { value: Math.round(Math.max(-1.1, Math.min(1.1, value)) * 1000) / 1000, danger: Boolean(options && options.danger === true) } : null);
+      },
       // A big card in the middle: { title, text }, or null to hide it.
       card(options) {
         send('card', options && typeof options === 'object' ? options : null);

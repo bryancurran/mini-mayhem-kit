@@ -11,7 +11,7 @@
 
 export const MM = {
   version: 1,
-  kitVersion: 13, // bump whenever the kit changes in a way uploads should wait for (see the kit's CHANGELOG.md)
+  kitVersion: 14, // bump whenever the kit changes in a way uploads should wait for (see the kit's CHANGELOG.md)
   netDelay: 300, // ms the server waits before a tick is final (later inputs move to the next tick)
   futureSlack: 300, // ms ahead of the server's clock an input may be stamped
   sendRate: 10, // snapshots per second (inputs are also passed on the moment they arrive)

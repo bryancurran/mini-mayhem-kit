@@ -110,6 +110,12 @@ class ScriptedView {
     for (const r of rects('.hud-chips .chip, .hud-timer, .hud-top .flag-round')) top = Math.max(top, r.bottom + 8);
     for (const r of rects('.hud-bottom, .hud-type, .dash-btn, .tap-zone span')) bottom = Math.max(bottom, height - r.top + 8);
     for (const r of rects('.climb-tower')) right = Math.max(right, width - r.left + 8);
+    // A race track, your place and a dial sit along the top on some screens and the bottom on
+    // others: each counts for the half it's in.
+    for (const r of rects('.race-progress, .race-place, .rope-meter')) {
+      if (r.top + r.bottom < height) top = Math.max(top, r.bottom + 8);
+      else bottom = Math.max(bottom, height - r.top + 8);
+    }
     const w = Math.max(1, width - right);
     const h = Math.max(1, height - top - bottom);
     const value = { top: Math.round(top), bottom: Math.round(bottom), left: 0, right: Math.round(right), width: Math.round(w), height: Math.round(h), aspect: w / h };

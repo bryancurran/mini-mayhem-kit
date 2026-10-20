@@ -46,6 +46,7 @@ export class Hud {
     this.outList = [];
     this.meterDots = null;
     this.placeEl = null;
+    this.dialEl = null;
     this.askEl = null;
     this.cardEl = null;
     this.resultEl = null;
@@ -75,6 +76,7 @@ export class Hud {
     else if (part === 'card') this.card(a);
     else if (part === 'result') this.result(a);
     else if (part === 'hint') this.hint(a);
+    else if (part === 'dial') this.dial(a);
   }
 
   // Text in parts, some in a color: ['How many ', { text: 'RED', color: '#ff4d5e' }, ' ran by?'].
@@ -208,6 +210,26 @@ export class Hud {
       void el.offsetWidth;
       el.style.animation = '';
     }
+  }
+
+  // A half-circle dial with a needle (Tightrope Tumble's balance): { value: -1 (all the way left)
+  // to 1 (all the way right), danger: true (it pulses) }, or null to hide it. Above the controls
+  // hint on wide screens, under the top of the HUD on narrow ones.
+  dial(o) {
+    if (!o || typeof o !== 'object' || !Number.isFinite(o.value)) {
+      if (this.dialEl) this.dialEl.hidden = true;
+      return;
+    }
+    if (!this.dialEl) {
+      const el = (this.dialEl = document.createElement('div'));
+      el.className = 'rope-meter';
+      el.innerHTML = '<div class="rope-arc"></div><div class="rope-needle"></div>';
+      this.el.insertBefore(el, this.el.querySelector('.hud-bottom'));
+    }
+    const el = this.dialEl;
+    el.hidden = false;
+    el.querySelector('.rope-needle').style.transform = `rotate(${Math.max(-1.1, Math.min(1.1, o.value)) * 90}deg)`;
+    el.classList.toggle('danger', o.danger === true);
   }
 
   // Shows or hides the controls hint along the bottom (Mosh Count shows it only while answering).

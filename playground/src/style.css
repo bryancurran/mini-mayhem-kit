@@ -680,6 +680,20 @@ input:focus {
   font-size: 13px;
 }
 
+/* One button that goes round the orders. */
+.sort-btn.sort-cycle {
+  flex: none;
+  min-width: 112px;
+  border-color: var(--line);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.sort-btn.sort-cycle span {
+  margin-left: 2px;
+  opacity: 0.6;
+}
+
 .lobby .user-foot {
   margin-bottom: 0;
 }

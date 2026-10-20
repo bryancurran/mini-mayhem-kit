@@ -409,8 +409,9 @@ avatars under the group aren't copied.
 
   Shapes are cached by their numbers, so for lots of different sizes, scale one shape or
   pass geometry.
-- `geometry`: `{ positions, uvs?, normals?, indices?, groups?: [[start, count, materialIndex]] }`
-  for your own meshes, or a handle from `mm.geometry(data)` to share one.
+- `geometry`: `{ positions, uvs?, normals?, indices?, groups?: [[start, count, materialIndex]],
+  morphs? }` for your own meshes, or a handle from `mm.geometry(data)` to share one.
+- `morph` (meshes): weights for its geometry's `morphs` (see Geometry below), one a morph.
 - `color`: a hex color, giving the standard cartoon material.
 - `material`: a handle from `mm.material(...)`, or an array of them for meshes with groups.
 - avatar `mode`: `idle`, `happy`, `run`, `jump`, `fall`, `stuck`, `swim`, `balance`,
@@ -421,7 +422,7 @@ avatars under the group aren't copied.
   color. `bobble: false` hides the ball on top of its antenna (under a hat you give it).
 
 ```js
-mm.material({ color, texture, repeat: [u, v], opacity, transparent, depthWrite, side: 'double', emissive, unlit, outline, blending: 'add' })
+mm.material({ color, texture, repeat: [u, v], opacity, transparent, alphaTest, depthWrite, side: 'double', emissive, unlit, outline, blending: 'add' })
 mm.texture(width, height, (g, w, h) => { g.fillStyle = '#f00'; g.fillRect(0, 0, w, h); }, { repeat: true, pixelated: false, anisotropy: 4 })
 mm.geometry({ positions, ... })
 mm.bake(group, { colors })
@@ -429,11 +430,22 @@ mm.bake(group, { colors })
 
 - **Materials:** `.set()` changes a material, for example to fade its opacity. `.dispose()`
   frees it. `blending: 'add'` adds its color to what's behind (light beams, glows; with
-  `opacity`, `depthWrite: false` and `unlit`).
+  `opacity`, `depthWrite: false` and `unlit`). `alphaTest` (0 to 1) leaves out the parts of a
+  texture less solid than that altogether, for cut-outs drawn on a see-through texture (a net,
+  leaves, a fence): the gaps stay clear from every angle, and the lines don't blur into a haze far
+  away.
 - **Geometry:** `.set({ positions })` on a handle from `mm.geometry` moves its vertices
   (the same number of them) for something that ripples or bends, like a flag in the wind; the
   normals follow. It's much cheaper than a new geometry every frame. Send them only when they
   change.
+- **Morphs:** for a shape that moves the same way every time, much cheaper still: give the
+  geometry `morphs`, up to 8 lists of offsets (x, y, z for every vertex), and each mesh using it a
+  `morph` weight for each: the mesh is drawn at its positions plus each morph's offsets times its
+  weight (1 is the whole offset, 0.5 half, -1 the other way). Moving it is then a few numbers a
+  frame however big the shape. Tightrope Tumble's ropes swing this way: each swinging stretch is
+  a morph (how far each vertex goes at full swing), weighted by the sine of the swing. The normals
+  stay as given. Morphs count against the geometry limit as vertices of their own, and a baked
+  group keeps only the shape, not its morphs.
 - **Textures:** `mm.texture` hands you something that works like a canvas 2D context:
   - Properties: `fillStyle`, `strokeStyle`, `lineWidth`, `globalAlpha`, `lineCap`,
     `lineJoin`, `font`, `textAlign` and `textBaseline`.
@@ -571,6 +583,7 @@ mm.hud.ask({ question, value, picker, locked, progress, lock, lockedText })   //
 mm.hud.card({ title, text })                             // a big card in the middle ("Round 2: Watch the colors!"); null hides it
 mm.hud.result({ label, value, text, good })              // the answer, big, near the top; null hides it
 mm.hud.hint(false)                                       // hides the controls hint (true shows it again)
+mm.hud.dial(lean, { danger })                            // a half-circle dial with a needle, -1 to 1; null hides it
 ```
 
 - `mm.hud.timer` options: `label` over the time (`'Time'` if left out, `'Last slice'` say),
@@ -598,6 +611,11 @@ mm.hud.hint(false)                                       // hides the controls h
   with `good: true` ("You said 8: exact! +3").
 - `mm.hud.hint(false)`: the controls hint along the bottom stays hidden until `hint(true)`, for a
   game whose controls only matter now and then (the answer stage).
+- `mm.hud.dial`: Tightrope Tumble's balance meter: a needle over a half-circle, green in the
+  middle, yellow then red toward the ends; `value` from -1 (needle all the way left) to 1 (right),
+  and a little past either end. `danger: true` makes it pulse (about to fall). Above the controls
+  hint on wide screens, under the top of the HUD on phones. Update it every frame, from the state
+  (between the last two ticks with `view.alpha` for an even sweep).
 - `mm.hud.place`: where you are in the race right now, at the top right (`null` for
   spectators). With a place, the tower meter and no score chips, the timer sits in the middle
   of the top (Beanstalk Blitz).
@@ -616,7 +634,8 @@ Where things sit:
   before it. With many players on a phone, the chips wrap onto two or three rows. A meter
   `across` the top goes first, the timer just after it, and your `place` at the far right.
 - **Along the bottom:** the controls hint, plus the touch controls on phones (the DASH button or
-  side buttons in the bottom corners). The meter runs down the right edge.
+  side buttons in the bottom corners), with the `dial` just above (under the top of the HUD on
+  phones). The meter runs down the right edge.
 - **Banners:** below the chips on wide screens, and above the bottom controls on phones.
 - **A typing game's text box:** along the bottom, just above the controls hint; on a phone, above
   the keyboard while it's up. `view.screen.safe` leaves room for it (so with `safe: true`, the
