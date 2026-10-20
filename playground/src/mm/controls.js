@@ -177,7 +177,8 @@ export class Controls {
     }
 
     if (layout === 'stick') {
-      this.input.showTouchControls(hudRoot, this.spec.touchLabel ?? 'GO');
+      // Ready (yellow) unless the game says it's recharging (mm.hud.cooldown).
+      this.input.showTouchControls(hudRoot, this.spec.touchLabel ?? 'GO').classList.add('ready');
       this.touchStick = true;
       this.cleanup.push(() => this.input.hideTouchControls());
       return;
@@ -225,6 +226,7 @@ export class Controls {
     }
 
     const now = { a: false, b: false, u: false, d: false, l: false, r: false };
+    let analog = false; // a real stick in play (rather than keys or a d-pad)
     for (const pad of navigator.getGamepads?.() ?? []) {
       if (!pad) continue;
       const b = pad.buttons;
@@ -238,6 +240,7 @@ export class Controls {
       if (Math.hypot(ax, ay) > DEADZONE) {
         mx += ax;
         my -= ay;
+        analog = true;
       }
       if (b[14]?.pressed) mx -= 1;
       if (b[15]?.pressed) mx += 1;
@@ -254,6 +257,7 @@ export class Controls {
     if (this.touchStick) {
       mx += this.input.stick.x;
       my -= this.input.stick.z;
+      if (this.input.stick.x || this.input.stick.z) analog = true;
       const pressed = this.input.touchActionDown;
       if (pressed && !this.touchButton) this.down('a', 'touch-button');
       if (!pressed && this.touchButton) this.up('a', 'touch-button');
@@ -268,9 +272,10 @@ export class Controls {
         mx /= len;
         my /= len;
       }
-      // Whole steps of 0.1, so small wobbles of a real stick don't flood the network.
-      const x = Math.round(mx * 10) * 10;
-      const y = Math.round(my * 10) * 10;
+      // A real stick in whole steps of 0.1, so its small wobbles don't flood the network; keys and
+      // d-pads to the hundredth, so a diagonal is as long as straight ahead (0.71, not 0.7).
+      const x = analog ? Math.round(mx * 10) * 10 : Math.round(mx * 100);
+      const y = analog ? Math.round(my * 10) * 10 : Math.round(my * 100);
       const t = this.clock();
       const changed = x !== this.lastMove[0] || y !== this.lastMove[1];
       if (changed && (t - this.moveAt >= MOVE_EVERY_MS || (x === 0 && y === 0))) {

@@ -1,10 +1,11 @@
 // Things players buy with their coins to dress up their Mosh. Bought once, kept for good on
 // their account (server/accounts.js), worn in the lobby and in every game (client/src/avatar.js
-// draws them). A Mosh wears at most one thing in each slot, and nothing ever hides its antenna.
+// draws them). A Mosh wears at most one thing in each slot, and nothing ever hides its antenna (an
+// antenna from the shop takes the place of its own).
 
-export const SLOTS = ['head', 'face', 'neck', 'body', 'back', 'feet'];
+export const SLOTS = ['antenna', 'head', 'face', 'neck', 'body', 'back', 'feet'];
 // What the profile's shop calls each group (one thing from each can be worn at once).
-export const SLOT_NAMES = { head: 'Head', face: 'Face', neck: 'Neck', body: 'Body', back: 'Back', feet: 'Feet' };
+export const SLOT_NAMES = { antenna: 'Antenna', head: 'Head', face: 'Face', neck: 'Neck', body: 'Body', back: 'Back', feet: 'Feet' };
 
 export const COSMETICS = {
   bowtie: { name: 'Bow Tie', slot: 'neck', price: 100, icon: '🎀', blurb: 'Dapper for every round.' },
@@ -12,8 +13,12 @@ export const COSMETICS = {
   beanie: { name: 'Beanie', slot: 'head', price: 160, icon: '🧶', blurb: 'Your antenna is the pom-pom.' },
   cap: { name: 'Backwards Cap', slot: 'head', price: 200, icon: '🧢', blurb: 'Too cool to face forward.' },
   sandals: { name: 'Sandals', slot: 'feet', price: 220, icon: '🩴', blurb: 'Toes out, summer on.' },
+  spring: { name: 'Springy Coil', slot: 'antenna', price: 250, icon: '🌀', blurb: 'Boing! A springy antenna.' },
   shades: { name: 'Cool Shades', slot: 'face', price: 300, icon: '🕶️', blurb: 'The sun’s always out up here.' },
+  star: { name: 'Star Topper', slot: 'antenna', price: 300, icon: '⭐', blurb: 'A little star on top.' },
+  bolt: { name: 'Lightning Bolt', slot: 'antenna', price: 380, icon: '⚡', blurb: 'Zigzag, like a lightning bolt.' },
   tophat: { name: 'Top Hat', slot: 'head', price: 400, icon: '🎩', blurb: 'Very fancy. Antenna included.' },
+  twin: { name: 'Twin Antennas', slot: 'antenna', price: 450, icon: '🐜', blurb: 'Twice the signal.' },
   medal: { name: 'Gold Medal', slot: 'neck', price: 480, icon: '🏅', blurb: 'A winner, whatever the scoreboard says.' },
   jacket: { name: 'Puffer Jacket', slot: 'body', price: 500, icon: '🧥', blurb: 'Snug as a bug.' },
   boots: { name: 'Biker Boots', slot: 'feet', price: 560, icon: '🥾', blurb: 'Stomp in style.' },

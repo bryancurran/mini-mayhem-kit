@@ -16,6 +16,12 @@ import { noOutline, toon } from './gfx.js';
 // shows. The crown (the host's, the leader's) sits on top of them: crowned, where it sits and how
 // much the antenna grows to clear it too. Things that move (a cape, wings) have
 // animate(obj, avatar, dt, speed).
+//
+// Antennas (antenna: true) take the place of the Mosh's own: one or more masts rising from the top
+// of the head, each a stem with something on top, starting at base. They're made of what its own
+// is made of: stalk (the stand-in stalk material, which avatar.js swaps for the Mosh's own darker
+// color) and gold. Head things say how high their top is (top), and fit(obj, cover) grows the
+// stems so the antenna's look starts above whatever's on the head.
 
 const BODY_Y = 0.52;
 const FOOT_SCALE = [1, 0.6, 1.35]; // how avatar.js squashes its foot spheres (radius 0.2)
@@ -80,9 +86,168 @@ const dome = (y, wide, tall) => [
   { at: [0, y, 0], scale: [wide, tall, wide * 0.95] },
 ];
 
+// Antennas: a mast rises from the top of the head at x, leaning out by lean (radians), a stem so
+// long with a group on top (returned) to build the rest in.
+const ANTENNA_BASE = 1.12;
+const stemGeo = shared(new THREE.CylinderGeometry(0.03, 0.04, 1, 8).translate(0, 0.5, 0));
+const stalk = mat('#7a5f8f'); // avatar.js swaps in the Mosh's darker color
+stalk.userData.stalk = true;
+const bobbleGold = mat('#ffd23d', { emissive: new THREE.Color('#5a3a00') });
+function mast(g, { x = 0, lean = 0, stem }) {
+  const m = new THREE.Group();
+  m.name = 'mast';
+  m.position.set(x, ANTENNA_BASE, 0);
+  m.rotation.z = x < 0 ? lean : -lean;
+  m.userData = { stem, lean: m.rotation.z };
+  const s = new THREE.Mesh(stemGeo, stalk);
+  s.name = 'stem';
+  s.scale.y = stem;
+  s.castShadow = true;
+  const top = new THREE.Group();
+  top.name = 'top';
+  top.position.y = stem;
+  m.add(s, top);
+  g.add(m);
+  return top;
+}
+
+const masts = (obj) =>
+  (obj.userData.masts ??= obj.children
+    .filter((m) => m.name === 'mast')
+    .map((m) => ({ m, stem: m.getObjectByName('stem'), top: m.getObjectByName('top') })));
+
+// Taller by lift, straight up (a leaning mast grows that much more along itself).
+function fitMasts(obj, lift) {
+  for (const { m, stem, top } of masts(obj)) {
+    const length = m.userData.stem + lift / Math.cos(m.userData.lean);
+    stem.scale.y = length;
+    top.position.y = length;
+  }
+}
+
+// They sway and bob like the Mosh's own antenna: a little when it stands about, swept back when it
+// runs, flung about when it jumps or hops for joy.
+function swayMasts(obj, avatar, dt, speed) {
+  const t = avatar.time;
+  masts(obj).forEach(({ m }, i) => {
+    let side = Math.sin(t * 2 + i * 1.7) * 0.06;
+    let back = 0;
+    if (avatar.mode === 'run') {
+      side = Math.sin(t * 10 + i) * 0.05;
+      back = -Math.min(speed, 10) * 0.025;
+    } else if (avatar.mode === 'jump') back = -0.25;
+    else if (avatar.mode === 'fall') side = Math.sin(t * 22 + i * 2) * 0.3;
+    else if (avatar.mode === 'happy' || avatar.mode === 'cheer') side = Math.sin(t * 6.5 + i * 2) * 0.16;
+    m.rotation.z = damp(m.rotation.z, m.userData.lean + side, 12, dt);
+    m.rotation.x = damp(m.rotation.x, back, 12, dt);
+  });
+}
+
+// A flat outline through these points ([x, y, how round its corner is]), corners rounded off.
+function rounded(points) {
+  const shape = new THREE.Shape();
+  const at = (i) => new THREE.Vector2(points[(i + points.length) % points.length][0], points[(i + points.length) % points.length][1]);
+  points.forEach(([, , r], i) => {
+    const corner = at(i);
+    const from = corner.clone().add(at(i - 1).sub(corner).setLength(r));
+    const to = corner.clone().add(at(i + 1).sub(corner).setLength(r));
+    if (i === 0) shape.moveTo(from.x, from.y);
+    else shape.lineTo(from.x, from.y);
+    shape.quadraticCurveTo(corner.x, corner.y, to.x, to.y);
+  });
+  shape.closePath();
+  return shape;
+}
+
+// A flat shape with rounded-off edges, standing up and facing front.
+function slab(points, depth) {
+  const shape = new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x, y)));
+  return new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.012, bevelSegments: 2 }).translate(0, 0, -depth / 2);
+}
+
+// A coil rising from y 0, so wide, so tall, so many turns: it starts and ends in the middle, to
+// meet the stem below and the bobble on top.
+class Coil extends THREE.Curve {
+  constructor(radius, height, turns) {
+    super();
+    this.radius = radius;
+    this.height = height;
+    this.turns = turns;
+  }
+
+  getPoint(t, target = new THREE.Vector3()) {
+    const a = t * this.turns * Math.PI * 2;
+    const r = this.radius * THREE.MathUtils.smoothstep(Math.min(t, 1 - t), 0, 0.12);
+    return target.set(Math.cos(a) * r, t * this.height, Math.sin(a) * r);
+  }
+}
+
 const ITEMS = {
+  spring: {
+    antenna: true,
+    base: ANTENNA_BASE + 0.04, // the bottom of the coil
+    build(g) {
+      const top = mast(g, { stem: 0.04 });
+      new Parts(top)
+        .add(new THREE.TubeGeometry(new Coil(0.085, 0.34, 2.25), 140, 0.028, 8), stalk)
+        .add(new THREE.SphereGeometry(0.1, 14, 10), bobbleGold, { at: [0, 0.39, 0] })
+        .done();
+    },
+    animate: swayMasts,
+  },
+
+  star: {
+    antenna: true,
+    base: ANTENNA_BASE + 0.3 + 0.04 - 0.12 - 0.06, // the star's lowest points, on a bit of stem
+    build(g) {
+      const top = mast(g, { stem: 0.3 });
+      const points = Array.from({ length: 10 }, (_, i) => {
+        const a = (i / 10) * Math.PI * 2;
+        const r = i % 2 ? 0.065 : 0.15;
+        return [Math.sin(a) * r, Math.cos(a) * r];
+      });
+      // On the end of the stem, which reaches up into the notch between its two lower points.
+      new Parts(top).add(slab(points, 0.05), bobbleGold, { at: [0, 0.04, 0] }).done();
+    },
+    animate: swayMasts,
+  },
+
+  bolt: {
+    antenna: true,
+    base: ANTENNA_BASE + 0.04, // where it starts to zigzag
+    build(g) {
+      const top = mast(g, { stem: 0.04 });
+      // Up and right, sharply back left, up and right again, like a lightning bolt.
+      const kinks = [
+        [0, 0, 0],
+        [0.1, 0.13, 0],
+        [-0.06, 0.165, 0],
+        [0.06, 0.31, 0],
+      ];
+      const p = new Parts(top);
+      for (let i = 1; i < kinks.length; i++) p.bar(kinks[i - 1], kinks[i], 0.032, stalk);
+      for (const at of kinks) p.add(new THREE.SphereGeometry(0.032, 10, 8), stalk, { at });
+      p.add(new THREE.SphereGeometry(0.1, 14, 10), bobbleGold, { at: [0.075, 0.37, 0] });
+      p.done();
+    },
+    animate: swayMasts,
+  },
+
+  twin: {
+    antenna: true,
+    base: ANTENNA_BASE + 0.33 * Math.cos(0.28) + 0.04 - 0.09 - 0.08, // the bobbles, on a bit of stalk
+    build(g) {
+      for (const x of [-0.1, 0.1]) {
+        const top = mast(g, { x, lean: 0.28, stem: 0.33 });
+        new Parts(top).add(new THREE.SphereGeometry(0.09, 14, 10), bobbleGold, { at: [0, 0.04, 0] }).done();
+      }
+    },
+    animate: swayMasts,
+  },
+
   beanie: {
     lift: 0.03, // the antenna's bobble sits on top like a pom-pom
+    top: 1.4,
     crowned: { at: 1.3, lift: 0.17 },
     build(g) {
       const knit = mat('#e63950');
@@ -100,6 +265,7 @@ const ITEMS = {
   },
 
   cap: {
+    top: 1.32,
     crowned: { at: 1.24, lift: 0.12 },
     build(g) {
       const crown = mat('#3b5bdb');
@@ -120,6 +286,7 @@ const ITEMS = {
 
   tophat: {
     lift: 0.3,
+    top: 1.51,
     crowned: { at: 1.5, lift: 0.4 },
     build(g) {
       const felt = mat('#3a2a55');
@@ -151,22 +318,54 @@ const ITEMS = {
 
   shades: {
     build(g) {
-      const lens = mat('#231636', { emissive: new THREE.Color('#1a0c38') });
-      const frame = mat('#2a1840');
-      const glint = shared(noOutline(new THREE.MeshBasicMaterial({ color: '#ffffff' })));
+      // No cartoon outline: they're black already, and on the frame's flat edges it would float off them.
+      const lens = noOutline(mat('#0b0910'));
+      const frame = noOutline(mat('#1c1722'));
+      const glint = shared(noOutline(new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.22, depthWrite: false })));
       const p = new Parts(g);
+      // Classic wayfarers: a black lens over each eye, wide and straight along the top, sweeping up
+      // at the outer corner and narrowing to a rounded bottom, in a chunky frame with a heavy brow. Drawn
+      // for the right eye (outward is +x), and mirrored for the left.
+      const LENS = [
+        [-0.165, 0.125, 0.035],
+        [0.205, 0.16, 0.035],
+        [0.16, -0.1, 0.04],
+        [0.02, -0.165, 0.09],
+        [-0.13, -0.125, 0.04],
+      ];
+      const RIM = [
+        [-0.205, 0.18, 0.05],
+        [0.255, 0.215, 0.05],
+        [0.195, -0.135, 0.05],
+        [0.02, -0.205, 0.11],
+        [-0.165, -0.16, 0.05],
+      ];
       for (const side of [-1, 1]) {
-        // A dark lens in a frame over each eye, turned a little to follow the face.
-        const over = { at: [side * 0.22, 0.79, 0.615], rot: [0, side * 0.18, 0], scale: [1.12, 0.9, 1] };
-        p.add(new THREE.CylinderGeometry(0.185, 0.185, 0.04, 28).rotateX(Math.PI / 2), lens, over);
-        p.add(new THREE.TorusGeometry(0.185, 0.022, 8, 32), frame, { ...over, at: [side * 0.22, 0.79, 0.625] });
-        p.add(new THREE.BoxGeometry(0.035, 0.15, 0.01), glint, { at: [side * 0.22 - 0.07, 0.83, 0.645], rot: [0, side * 0.18, -0.6] });
-        // The arm, from the outside of the frame back along the side of the head.
-        p.bar([side * 0.425, 0.8, 0.575], [side * 0.565, 0.82, 0.12], 0.022, frame);
+        // Where each eye's lens sits, turned a little to follow the face (and clear of the shine on
+        // the eye, so it doesn't poke through).
+        const place = new THREE.Matrix4().compose(
+          new THREE.Vector3(side * 0.22, 0.79, 0.65),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(0, side * 0.2, 0)),
+          new THREE.Vector3(1, 1, 1),
+        );
+        const on = (x, y, z) => new THREE.Vector3(side * x, y, z).applyMatrix4(place).toArray();
+        const flip = (points) => points.map(([x, y, r]) => [side * x, y, r]);
+        const rim = rounded(flip(RIM));
+        rim.holes.push(rounded(flip(LENS)));
+        p.add(new THREE.ExtrudeGeometry(rim, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 2, curveSegments: 6 }).translate(0, 0, -0.02).applyMatrix4(place), frame);
+        // The lens, a little bigger than its hole so the frame covers its edge, set back in it.
+        p.add(new THREE.ExtrudeGeometry(rounded(flip(LENS.map(([x, y, r]) => [x * 1.06, y * 1.06 + 0.002, r]))), { depth: 0.012, bevelEnabled: false, curveSegments: 6 }).translate(0, 0, -0.016).applyMatrix4(place), lens);
+        // A faint glint across the top inside corner of the lens, a thick stripe and a thin one.
+        for (const [x, width, tall] of [[-0.075, 0.024, 0.12], [-0.035, 0.01, 0.09]]) {
+          p.add(new THREE.BoxGeometry(width, tall, 0.003).rotateZ(side * -0.6).translate(side * x, 0.04, 0).applyMatrix4(place), glint);
+        }
+        // The arm, from the top outer corner back to the ear.
+        p.bar(on(0.245, 0.16, -0.01), [side * 0.575, 0.86, 0.12], 0.026, frame);
       }
-      // The bridge between the lenses.
-      p.add(new THREE.TorusGeometry(0.05, 0.022, 6, 12, Math.PI), frame, { at: [0, 0.81, 0.63] });
+      // The bridge across the top of the nose.
+      p.bar([-0.035, 0.93, 0.682], [0.035, 0.93, 0.682], 0.026, frame);
       p.done();
+      g.traverse((o) => o.material === glint && (o.castShadow = false)); // (its shadow on the lens would look like a second glint)
     },
   },
 
@@ -403,7 +602,7 @@ const shoe = (item, side) => (g) => {
 };
 
 // A new copy of the item for one Mosh: { obj (on its torso) or feet ([left, right]), slot, lift,
-// crowned, animate }.
+// top, crowned, animate, fit (an antenna's) }.
 export function makeItem(id) {
   const item = ITEMS[id];
   if (!item) return null;
@@ -412,7 +611,9 @@ export function makeItem(id) {
     feet: item.feet ? [-1, 1].map((side) => copy(`${id}:${side}`, shoe(item, side))) : null,
     slot: COSMETICS[id].slot,
     lift: item.lift ?? 0,
+    top: item.top ?? 0,
     crowned: item.crowned ?? null,
     animate: item.animate ?? null,
+    fit: item.antenna ? (obj, cover) => fitMasts(obj, Math.max(0, cover + 0.02 - item.base)) : null,
   };
 }

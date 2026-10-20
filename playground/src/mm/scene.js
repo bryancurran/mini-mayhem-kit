@@ -30,6 +30,7 @@ const LIMITS = {
   commandsPerFrame: 6000,
   soundsPerFrame: 8,
   burstCount: 120,
+  lathePoints: 200,
   ripples: 40, // on the water at once
   segments: 128,
   instances: 20_000, // copies across every mm.instances
@@ -37,6 +38,24 @@ const LIMITS = {
   instanceVertices: 3_000_000, // copies times the vertices of their shape, across them all
 };
 const COLOR = /^#[0-9a-f]{3,8}$/i;
+// Properties packed by the sandbox's drawing kit (pack in prelude-view.js) carry the numbers in
+// their arrays as whole numbers 10000 times too big (quicker for QuickJS to write out): this puts
+// them back. Handles (material ids) are left alone.
+function unfix(p) {
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return;
+  for (const k of Object.keys(p)) {
+    const v = p[k];
+    if (k === 'material' || !Array.isArray(v)) continue;
+    for (let i = 0; i < v.length; i++) if (typeof v[i] === 'number') v[i] /= 1e4;
+  }
+}
+// The parts of an avatar things can be attached to (in the Mosh's own space: y up from its feet,
+// facing +z; its left hand is on the -x side). The torso bobs, squashes and leans with it.
+const AVATAR_PARTS = {
+  torso: (a) => a.torso,
+  'left-hand': (a) => a.hands[0],
+  'right-hand': (a) => a.hands[1],
+};
 const AVATAR_MODES = new Set(['idle', 'happy', 'run', 'jump', 'fall', 'stuck', 'swim', 'balance', 'sleep', 'cheer']);
 const LABEL_TONES = new Set(['good', 'great', 'bad']);
 const SOUNDS = new Set(Object.keys(sfx));
@@ -62,27 +81,44 @@ function shapeGeometry(s) {
   const [kind, ...p] = s;
   const n = (i, def) => num(p[i], 0.0001, 1e4, def);
   const seg = (i, def) => Math.round(num(p[i], 1, LIMITS.segments, def));
+  // Optional start angles and sweeps, as three.js has them (a dome, half a cylinder, a pie).
+  const start = (i) => num(p[i], -Math.PI * 4, Math.PI * 4, 0);
+  const sweep = (i, def = Math.PI * 2) => num(p[i], 0.0001, Math.PI * 2, def);
   switch (kind) {
     case 'box':
       return new THREE.BoxGeometry(n(0, 1), n(1, 1), n(2, 1));
     case 'sphere':
-      return new THREE.SphereGeometry(n(0, 1), seg(1, 24), seg(2, 16));
+      return new THREE.SphereGeometry(n(0, 1), seg(1, 24), seg(2, 16), start(3), sweep(4), start(5), sweep(6, Math.PI));
     case 'cylinder':
-      return new THREE.CylinderGeometry(num(p[0], 0, 1e4, 1), num(p[1], 0, 1e4, 1), n(2, 1), seg(3, 24));
+      return new THREE.CylinderGeometry(num(p[0], 0, 1e4, 1), num(p[1], 0, 1e4, 1), n(2, 1), seg(3, 24), seg(4, 1), p[5] === true, start(6), sweep(7));
     case 'cone':
-      return new THREE.ConeGeometry(n(0, 1), n(1, 1), seg(2, 24));
+      return new THREE.ConeGeometry(n(0, 1), n(1, 1), seg(2, 24), seg(3, 1), p[4] === true, start(5), sweep(6));
     case 'plane':
-      return new THREE.PlaneGeometry(n(0, 1), n(1, 1));
+      return new THREE.PlaneGeometry(n(0, 1), n(1, 1), seg(2, 1), seg(3, 1));
     case 'circle':
-      return new THREE.CircleGeometry(n(0, 1), seg(1, 32));
+      return new THREE.CircleGeometry(n(0, 1), seg(1, 32), start(2), sweep(3));
     case 'ring':
-      return new THREE.RingGeometry(n(0, 0.5), n(1, 1), seg(2, 32));
+      return new THREE.RingGeometry(n(0, 0.5), n(1, 1), seg(2, 32), seg(3, 1), start(4), sweep(5));
     case 'torus':
       return new THREE.TorusGeometry(n(0, 1), n(1, 0.3), seg(2, 12), seg(3, 32), num(p[4], 0.01, Math.PI * 2, Math.PI * 2));
     case 'icosahedron':
       return new THREE.IcosahedronGeometry(n(0, 1), Math.round(num(p[1], 0, 4, 0)));
+    case 'dodecahedron':
+      return new THREE.DodecahedronGeometry(n(0, 1), Math.round(num(p[1], 0, 4, 0)));
+    case 'octahedron':
+      return new THREE.OctahedronGeometry(n(0, 1), Math.round(num(p[1], 0, 4, 0)));
     case 'capsule':
       return new THREE.CapsuleGeometry(n(0, 0.5), n(1, 1), seg(2, 8), seg(3, 16));
+    case 'lathe': {
+      // A profile of [x, y] points (x: the distance from the middle) spun around the y axis.
+      const pts = p[0];
+      if (!Array.isArray(pts) || pts.length < 2 || pts.length > LIMITS.lathePoints) throw new BadCommand(`lathe: a list of 2-${LIMITS.lathePoints} [x, y] points`);
+      const profile = pts.map((pt) => {
+        if (!Array.isArray(pt)) throw new BadCommand('lathe: points are [x, y]');
+        return new THREE.Vector2(num(pt[0], 0, 1e4, 0), num(pt[1], -1e4, 1e4, 0));
+      });
+      return new THREE.LatheGeometry(profile, seg(1, 12), start(2), sweep(3));
+    }
     default:
       throw new BadCommand(`unknown shape "${String(kind).slice(0, 20)}"`);
   }
@@ -372,13 +408,17 @@ export class SceneHost {
       try {
         if (!Array.isArray(c)) throw new BadCommand('not a command');
         const [op, a, b, d, e, f] = c;
+        if (op === 'new') unfix(d);
+        else if (op === 'set' || op === 'rset' || op === 'mat' || op === 'ibulk') unfix(b);
+        else if (op === 'camera' || op === 'burst' || op === 'ripple') unfix(a);
+        else if (op === 'inst' && Array.isArray(b)) for (const entry of b) if (Array.isArray(entry)) unfix(entry[1]);
         if (op === 'new') this.create(a, b, d ?? {});
         else if (op === 'set') this.update(this.node(a), b ?? {});
         else if (op === 'del') this.remove(a);
         else if (op === 'inst') this.place(this.node(a), b);
         else if (op === 'ibulk') this.placeMany(this.node(a), b ?? {});
         else if (op === 'mat') this.addResource(a, 'material', this.makeMaterial(b ?? {}));
-        else if (op === 'rset') this.updateMaterial(a, b ?? {});
+        else if (op === 'rset') this.updateResource(a, b ?? {});
         else if (op === 'tex') this.addResource(a, 'texture', this.makeTexture(b, d, e, f));
         else if (op === 'geo') this.addResource(a, 'geometry', this.makeGeometry(b));
         else if (op === 'free') this.free(a);
@@ -492,7 +532,7 @@ export class SceneHost {
       this.gliding.add(n.glide);
     }
     if (p.visible !== undefined) o.visible = p.visible !== false;
-    if (p.parent !== undefined) this.reparent(n, p.parent);
+    if (p.parent !== undefined) this.reparent(n, p.parent, p.part);
 
     if (n.kind === 'mesh') {
       if (p.shape !== undefined) this.setGeometry(n, this.shape(p.shape), false);
@@ -635,14 +675,23 @@ export class SceneHost {
     }
   }
 
-  reparent(n, parentId) {
+  // parent: a group, or an avatar with part (see AVATAR_PARTS), which then carries the node as it
+  // moves (a hat on its head, a flag in its hand).
+  reparent(n, parentId, part) {
     let parent = this.scene;
     if (parentId !== null) {
       const pn = this.node(parentId);
-      if (pn.kind !== 'group') throw new BadCommand('only groups can have children');
+      if (pn.kind === 'avatar') {
+        const of = AVATAR_PARTS[part ?? 'torso'];
+        if (!of) throw new BadCommand(`an avatar's part is one of ${Object.keys(AVATAR_PARTS).join(', ')}`);
+        parent = of(pn.avatar);
+      } else if (pn.kind === 'group') {
+        parent = pn.obj;
+      } else {
+        throw new BadCommand('only groups and avatars can have children');
+      }
       // No loops: the new parent can't be this node or anything under it.
-      for (let o = pn.obj; o; o = o.parent) if (o === n.obj) throw new BadCommand('a node cannot be inside itself');
-      parent = pn.obj;
+      for (let o = parent; o; o = o.parent) if (o === n.obj) throw new BadCommand('a node cannot be inside itself');
     }
     parent.add(n.obj);
   }
@@ -756,10 +805,19 @@ export class SceneHost {
     mat.needsUpdate = true;
   }
 
-  updateMaterial(id, p) {
+  // .set() on a material (its color, opacity, ...) or a geometry ({ positions }: new places for
+  // the same vertices, for things that ripple or bend; its normals follow).
+  updateResource(id, p) {
     const r = this.resources.get(id);
-    if (!r || r.kind !== 'material') throw new BadCommand(`no material ${id}`);
-    this.applyMaterialProps(r.value, p);
+    if (r?.kind === 'material') return this.applyMaterialProps(r.value, p);
+    if (r?.kind !== 'geometry') throw new BadCommand(`no material or geometry ${id}`);
+    const attr = r.value.attributes.position;
+    const pos = numbers(p.positions, attr.array.length, 'positions');
+    if (pos.length !== attr.array.length) throw new BadCommand(`positions: the geometry has ${attr.count} vertices`);
+    attr.array.set(pos);
+    attr.needsUpdate = true;
+    r.value.computeVertexNormals();
+    r.value.computeBoundingSphere();
   }
 
   makeTexture(width, height, ops, options) {
@@ -943,7 +1001,11 @@ export class SceneHost {
   // or smooth: false.
   setCamera(p) {
     const cam = this.camera;
-    if (p.safe !== undefined) this.safeCamera = p.safe === true;
+    if (p.safe !== undefined) {
+      // true: the part of the screen the HUD leaves free; { top, bottom, left, right }: px in from each edge.
+      const box = p.safe && typeof p.safe === 'object' ? p.safe : null;
+      this.safeCamera = box ? { top: num(box.top, 0, 4000, 0), bottom: num(box.bottom, 0, 4000, 0), left: num(box.left, 0, 4000, 0), right: num(box.right, 0, 4000, 0) } : p.safe === true;
+    }
     if (p.fov !== undefined) {
       const fov = num(p.fov, 10, 120, cam.fov);
       if (fov !== cam.fov) {
@@ -1022,12 +1084,14 @@ export class SceneHost {
 
   // With mm.camera({ safe: true }) the picture is framed on the part of the screen the HUD
   // doesn't cover: the camera looks at the middle of that area and fov spans its height. The
-  // scene still shows behind the HUD.
+  // scene still shows behind the HUD. safe: { top, bottom, left, right } frames it on the part
+  // of the screen that many px in from each edge instead.
   frameSafe() {
     const cam = this.camera;
     const W = window.innerWidth;
     const H = window.innerHeight;
-    if (!this.safeCamera || !this.safe) {
+    const box = typeof this.safeCamera === 'object' ? this.safeCamera : null;
+    if (!this.safeCamera || (!box && !this.safe)) {
       if (cam.view?.enabled) {
         cam.clearViewOffset();
         cam.aspect = W / H;
@@ -1035,7 +1099,9 @@ export class SceneHost {
       }
       return;
     }
-    const { top, left, width, height } = this.safe;
+    const { top, left, width, height } = box
+      ? { top: box.top, left: box.left, width: Math.max(1, W - box.left - box.right), height: Math.max(1, H - box.top - box.bottom) }
+      : this.safe;
     cam.aspect = width / height;
     cam.setViewOffset(width, height, width / 2 - (left + width / 2), height / 2 - (top + height / 2), W, H);
   }

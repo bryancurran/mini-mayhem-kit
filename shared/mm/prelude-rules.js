@@ -5,7 +5,8 @@
 // Browsers keep two copies of the state: the confirmed one (every input up to it is final) and a
 // prediction of the present. Your own inputs go into the prediction the moment you press; when
 // an input turns up for a moment that has already been predicted (someone else's, or one of
-// yours the server had to move), the prediction is rebuilt from the confirmed state.
+// yours the server had to move), the prediction is rebuilt from the copy it kept of the state
+// just before that moment, or from the confirmed state.
 //
 // This is a plain script (not a module). The engine outside the sandbox calls the functions on
 // globalThis.__mm.
@@ -32,7 +33,9 @@
     log: [], // inputs from the server not yet in conf: { q, k, t, p, a, c }
     lastQ: 0, // the server numbers inputs; anything at or below this has been seen already
     rebuilds: 0,
-    pending: [], // our own inputs the server hasn't echoed yet: { c, k, t, a, wall }
+    pending: [], // our own inputs the server hasn't echoed yet: { c, k, t, a, wall, at }
+    saves: [], // copies of the prediction as of recent ticks, oldest first, none before conf
+    saving: true, // false while the state is too big to be worth a copy a tick (see SAVE_BELOW)
     delivered: new Map(), // predicted events already shown -> their tick
     quiet: true, // the first frame catches up silently
     info: null, // passed to view.render
@@ -101,16 +104,23 @@
 
   const tickOf = (ms) => Math.floor((ms * E.rate) / 1000);
   const tickStartMs = (k) => Math.ceil((k * 1000) / E.rate);
-  // A copy of plain data: the same as a round trip through JSON, several times quicker.
+  // A copy of plain data: the same as a round trip through JSON, several times quicker. Slice and
+  // Object.assign copy each level (in QuickJS's own code), then whatever's nested is copied too.
   function copy(v) {
     if (v === null || typeof v !== 'object') return v;
     if (Array.isArray(v)) {
-      const a = new Array(v.length);
-      for (let i = 0; i < v.length; i++) a[i] = copy(v[i]);
+      const a = v.slice();
+      for (let i = 0; i < a.length; i++) {
+        const x = a[i];
+        if (x !== null && typeof x === 'object') a[i] = copy(x);
+      }
       return a;
     }
-    const o = {};
-    for (const k of Object.keys(v)) o[k] = copy(v[k]);
+    const o = Object.assign({}, v);
+    for (const k in o) {
+      const x = o[k];
+      if (x !== null && typeof x === 'object') o[k] = copy(x);
+    }
     return o;
   }
   const clone = (st) => ({ s: copy(st.s), tick: st.tick, ended: st.ended });
@@ -165,6 +175,21 @@
     while (st.tick < to && !st.ended && n++ < budget) runTick(st, st.tick, inputs.get(st.tick) || [], events, true);
   }
 
+  // A state bigger than this (as JSON) isn't copied every tick: copying it would cost more than
+  // rebuilding from the confirmed state now and then. Measured whenever the state is hashed.
+  const SAVE_BELOW = 32 * 1024;
+
+  // The prediction moves on to tick `to`, keeping a copy of each tick it reaches within `last`.
+  function predict(to, last, inputs, events) {
+    const st = E.pred;
+    let n = 0;
+    while (st.tick < to && !st.ended && n++ < CATCH_UP) {
+      runTick(st, st.tick, inputs.get(st.tick) || [], events, true);
+      if (E.saving && last - st.tick < E.keep) E.saves.push(clone(st));
+    }
+    if (E.saves.length > E.keep) E.saves.splice(0, E.saves.length - E.keep);
+  }
+
   function decode(raw) {
     return { q: raw[0], k: raw[1], t: raw[2], p: raw[3], a: raw[4], c: raw[5] };
   }
@@ -179,6 +204,8 @@
 
   function hashOf(st) {
     const text = `${JSON.stringify(st.s)}|${st.tick}|${st.ended ? 1 : 0}`;
+    E.saving = text.length < SAVE_BELOW;
+    if (!E.saving) E.saves = [];
     let h = 0x811c9dc5;
     for (let i = 0; i < text.length; i++) {
       h ^= text.charCodeAt(i);
@@ -209,6 +236,7 @@
       const a = JSON.parse(json);
       if (!rules) throw new Error('rules.js never called defineRules()');
       E.rate = a.rate;
+      E.keep = Math.ceil(a.rate); // the most saves kept: a second's worth (more than ever needed)
       E.seed = a.seed | 0;
       E.me = a.me;
       game.players = Object.freeze(a.players.map((p) => Object.freeze({ index: p.index, id: p.id })));
@@ -225,7 +253,9 @@
         const s = inRules(() => rules.setup(game));
         cur = null;
         if (!isPlain(s, 0)) throw new Error('setup() must return plain data (objects, arrays, strings, finite numbers, booleans, null)');
-        E.conf = { s: JSON.parse(JSON.stringify(s)), tick: 0, ended: false };
+        const text = JSON.stringify(s);
+        E.conf = { s: JSON.parse(text), tick: 0, ended: false };
+        E.saving = text.length < SAVE_BELOW;
       }
       for (const raw of a.log || []) {
         const e = decode(raw);
@@ -243,12 +273,13 @@
     // tick, h: its hash if asked, ended }.
     frame(json) {
       const a = JSON.parse(json);
-      let rebuild = false;
+      let from = Infinity; // the first tick whose inputs changed: the prediction is redone from it
 
       if (a.reset) {
         E.conf = { s: a.reset.s, tick: a.reset.tick, ended: a.reset.ended };
         E.log = E.log.filter((e) => e.k >= E.conf.tick);
-        rebuild = true;
+        E.saves = [];
+        from = -Infinity;
       }
 
       for (const raw of a.log) {
@@ -261,47 +292,63 @@
           // Our own input coming back: only a change if the server had to move it.
           const was = effective(E.pending[mine]);
           E.pending.splice(mine, 1);
-          if ((was.k !== e.k || was.t !== e.t) && Math.min(was.k, e.k) < E.pred.tick) rebuild = true;
-        } else if (e.k < E.pred.tick) {
-          rebuild = true;
+          if (was.k !== e.k || was.t !== e.t) from = Math.min(from, was.k, e.k);
+        } else {
+          from = Math.min(from, e.k);
         }
         E.log.push(e);
       }
 
       for (const raw of a.local) {
         const p = { c: raw[0], k: tickOf(raw[1]), t: raw[1], a: raw[2], wall: a.wall };
-        if (effective(p).k < E.pred.tick) rebuild = true;
+        from = Math.min(from, effective(p).k);
         E.pending.push(p);
       }
       // Inputs the server never echoed (it refused them) stop being predicted after a while.
-      const before = E.pending.length;
-      E.pending = E.pending.filter((p) => a.wall - p.wall < 3000);
-      if (E.pending.length !== before) rebuild = true;
+      const kept = [];
+      for (const p of E.pending) {
+        if (a.wall - p.wall < 3000) kept.push(p);
+        else from = Math.min(from, p.at ?? -Infinity);
+      }
+      E.pending = kept;
 
       const confirmed = [];
       if (a.fin > E.conf.tick) {
         advance(E.conf, a.fin, byTick(E.log), confirmed, CATCH_UP);
         E.log = E.log.filter((e) => e.k >= E.conf.tick);
         for (const [key, k] of E.delivered) if (k < E.conf.tick) E.delivered.delete(key);
+        let old = 0;
+        while (old < E.saves.length && E.saves[old].tick < E.conf.tick) old++;
+        E.saves.splice(0, old);
+        // One of ours went final unechoed: it's now predicted at the first tick that isn't.
+        for (const p of E.pending) if (p.at !== undefined && effective(p).k !== p.at) from = Math.min(from, p.at);
       }
 
-      // The prediction: from the confirmed state (if it needs rebuilding) up to the present.
+      // After a long pause between frames the confirmed state can overtake the prediction: the
+      // ticks in between were never predicted, so their events come as they were confirmed.
+      const predicted = E.pred.tick < E.conf.tick ? confirmed.filter((c) => c[0] >= E.pred.tick) : [];
+
+      // The prediction: redone (if an input changed) from the last copy before the change, or
+      // the confirmed state, then on up to the present.
       let was = null; // the prediction being replaced
-      if (rebuild || E.pred.tick < E.conf.tick) {
+      if (from < E.pred.tick || E.pred.tick < E.conf.tick) {
         if (E.pred.tick >= E.conf.tick) was = E.pred;
-        E.pred = clone(E.conf);
+        while (E.saves.length && E.saves[E.saves.length - 1].tick > from) E.saves.pop();
+        E.pred = clone(E.saves.length ? E.saves[E.saves.length - 1] : E.conf);
         E.rebuilds++;
       }
-      const inputs = byTick(E.log.concat(E.pending.map(effective)));
-      const predicted = [];
+      const placed = E.pending.map(effective);
+      for (let i = 0; i < placed.length; i++) E.pending[i].at = placed[i].k;
+      const inputs = byTick(E.log.concat(placed));
       // The new prediction at the moment the old one had reached, to compare with it (see
       // view.correction).
       let correction = null;
-      if (was && !was.ended && was.tick <= tickOf(a.now)) {
-        advance(E.pred, was.tick, inputs, predicted, CATCH_UP);
+      const present = Math.max(0, tickOf(a.now));
+      if (was && !was.ended && was.tick <= present) {
+        predict(was.tick, present, inputs, predicted);
         if (E.pred.tick === was.tick && !E.pred.ended) correction = { was: was.s, now: copy(E.pred.s) };
       }
-      advance(E.pred, Math.max(0, tickOf(a.now)), inputs, predicted, CATCH_UP);
+      predict(present, present, inputs, predicted);
       // Inputs already made during the tick that's still going on show right away.
       let shown = E.pred;
       const early = (inputs.get(E.pred.tick) || []).filter((e) => e.t <= a.now);

@@ -150,7 +150,9 @@ Inputs look like this, each with `player` (an index) and `time` (seconds, to the
 millisecond):
 - `{ type: 'press' | 'release', button: 'a' | 'b' }`
 - `{ type: 'dir', dir: 'up' | 'down' | 'left' | 'right' }`
-- `{ type: 'move', x, y }`, with x and y from -1 to 1 and y pointing up.
+- `{ type: 'move', x, y }`, with x and y from -1 to 1 and y pointing up. A stick sends whole
+  steps of 0.1; keys and d-pads send hundredths, so a diagonal is 0.71 each way, as long as
+  straight ahead.
 - `{ type: 'text', text, enter }` in typing games: `enter` is `true` when they pressed Enter
   (the box is empty after that), and `false` for what's in the box so far (`text: "live"` only).
 
@@ -174,6 +176,11 @@ presses instantly and still agree with everyone else:
 
 Anything rules.js defines at the top level (constants, helper functions) is visible to
 view.js too, so shared maths only needs writing once.
+
+Browsers copy the state as they predict, about once a tick, so a small state makes for a quicker
+game. Anything that never changes and follows from `game.seed` alone (a map, a schedule) can be
+worked out by a top-level function in rules.js, once, instead of kept in the state; the view
+gets the same seed as `view.seed`.
 
 ## view.js
 
@@ -211,6 +218,8 @@ not for someone joining mid-game). `render(state, view)` runs every frame.
 - `events`: new events from `game.emit` since the last frame, predicted, so they arrive
   instantly. A predicted event is never taken back: if the prediction gets corrected, the
   event isn't retracted, and a corrected version (with different contents) can arrive as well.
+  After a long pause between frames (a hitch, a slow phone), the events of the moments that
+  were never predicted come here once they're confirmed, so effects aren't skipped.
 - `confirmed`: events that are final, a third of a second or so later.
 - `correction`: on a frame where the prediction was corrected, `{ was, now }`: the state as it
   was predicted on the last frame, and as it is now predicted for that same moment. `null` on
@@ -291,11 +300,11 @@ Nodes are created with a function and changed with `.set({...})`. Several change
 frame are sent as one. `.remove()` removes a node and everything under it.
 
 ```js
-mm.group({ pos, rot, scale, parent, visible })
-mm.mesh({ shape | geometry, color | material, pos, rot, scale, parent, visible, shadow })
-mm.avatar({ color, mode, speed, crown, shadow, pos, rot, scale, parent })   // a Mosh, the players' character
-mm.label({ text, style: 'tag' | 'me' | 'float', tone: 'good' | 'great' | 'bad', color, pos, opacity, parent })
-mm.instances({ shape | geometry, color | material, count, shadow, outline, pos, rot, scale, parent })
+mm.group({ pos, rot, scale, parent, part, visible })
+mm.mesh({ shape | geometry, color | material, pos, rot, scale, parent, part, visible, shadow })
+mm.avatar({ color, mode, speed, crown, shadow, pos, rot, scale, parent, part })   // a Mosh, the players' character
+mm.label({ text, style: 'tag' | 'me' | 'float', tone: 'good' | 'great' | 'bad', color, pos, opacity, parent, part })
+mm.instances({ shape | geometry, color | material, count, shadow, outline, pos, rot, scale, parent, part })
 ```
 
 `mm.instances` draws many copies of one shape at once (a crowd, coins, debris, a field of grass)
@@ -304,8 +313,7 @@ for the price of one node. Each copy shows once it's placed:
 - `.update({ from, pos, rot, scale, color, shown, snap })` places many at once, much more cheaply:
   `pos` and `rot` are flat arrays of 3 numbers a copy (`[x0, y0, z0, x1, y1, z1, ...]`), `scale`
   1 number a copy, `color` one color a copy, starting at copy `from` (0). `shown: n` shows the
-  first `n` copies and hides the rest. Reuse the same arrays every frame, and round the numbers
-  (to 3 decimals, say) to keep frames small.
+  first `n` copies and hides the rest. Reuse the same arrays every frame.
 - A few hundred copies moving every frame is fine; thousands are fine if they mostly stay put.
 - `count`: up to 4096 copies each, 20000 in all.
 - `color` on a copy tints it: start from a white `color` for copies in different colors.
@@ -316,19 +324,29 @@ Labels: `style: 'tag'` is a name tag in the player's `color`, `'me'` the same ta
 (for "YOU" over your own Mosh), and `'float'` floating text in a `tone`.
 
 - `pos`, `rot` (radians, XYZ order) and `scale` (a number or `[x, y, z]`) are like
-  three.js. y is up.
+  three.js. y is up. Numbers you pass to drawing calls are sent to 4 decimal places.
+- `parent`: a group, or an avatar. Under an avatar, `part` says which bit of the Mosh carries it
+  as it runs, bobs and squashes: `'torso'` (the default), `'left-hand'` or `'right-hand'` (a cap
+  on its head, a flag in its hand). `pos` is then from that part, in the Mosh's own space: y up,
+  facing +z, its left hand on the -x side.
 - `shadow`: `true` (cast and receive), `'cast'`, `'receive'` or `false` (the default).
 - `shape`:
   - `['box', w, h, d]`
-  - `['sphere', r, widthSegments, heightSegments]`
-  - `['cylinder', rTop, rBottom, h, segments]`
-  - `['cone', r, h, segments]`
-  - `['plane', w, h]`
-  - `['circle', r, segments]`
-  - `['ring', inner, outer, segments]`
+  - `['sphere', r, widthSegments, heightSegments, phiStart, phiLength, thetaStart, thetaLength]`
+  - `['cylinder', rTop, rBottom, h, segments, heightSegments, openEnded, thetaStart, thetaLength]`
+  - `['cone', r, h, segments, heightSegments, openEnded, thetaStart, thetaLength]`
+  - `['plane', w, h, widthSegments, heightSegments]`
+  - `['circle', r, segments, thetaStart, thetaLength]`
+  - `['ring', inner, outer, segments, rings, thetaStart, thetaLength]`
   - `['torus', r, tube, radialSegments, tubularSegments, arc]`
-  - `['icosahedron', r, detail]`
+  - `['icosahedron', r, detail]`, `['dodecahedron', r, detail]` and `['octahedron', r, detail]`
   - `['capsule', r, length, capSegments, radialSegments]`
+  - `['lathe', [[x, y], ...], segments, phiStart, phiLength]`: a profile spun round the y axis,
+    `x` being how far out from the middle (a vase, a mushroom cap); 2 to 200 points.
+
+  Everything after the sizes can be left out. The angles are in radians, as in three.js: part of
+  a sphere is a dome, half a cylinder (`openEnded: true` leaves its ends off) is an arch, part of
+  a circle is a slice of pie.
 
   Shapes are cached by their numbers, so for lots of different sizes, scale one shape or
   pass geometry.
@@ -348,6 +366,10 @@ mm.bake(group)
 
 - **Materials:** `.set()` changes a material, for example to fade its opacity. `.dispose()`
   frees it.
+- **Geometry:** `.set({ positions })` on a handle from `mm.geometry` moves its vertices
+  (the same number of them) for something that ripples or bends, like a flag in the wind; the
+  normals follow. It's much cheaper than a new geometry every frame. Send them only when they
+  change.
 - **Textures:** `mm.texture` hands you something that works like a canvas 2D context:
   - Properties: `fillStyle`, `strokeStyle`, `lineWidth`, `globalAlpha`, `lineCap`,
     `lineJoin`, `font`, `textAlign` and `textBaseline`.
@@ -376,7 +398,9 @@ mm.sound(name, ...numbers)
 - `mm.camera`: `fov` is the vertical field of view in degrees. With `safe: true`, the picture is
   framed on the part of the screen the HUD leaves free (`view.screen.safe`): the camera looks at
   the middle of that area and `fov` spans its height, while the scene still shows behind the
-  HUD. Fit things to `view.screen.safe.aspect` (see Coin Dash's view.js).
+  HUD. Fit things to `view.screen.safe.aspect` (see Coin Dash's view.js). `safe: { top, bottom,
+  left, right }` frames it on an area of your own instead, that many pixels in from each edge
+  (to keep a `callout` clear, say).
 - `mm.burst`: confetti-style particles. One particle that just hangs and fades (a trail) is a
   burst with `count: 1, speed: 0, up: 0, gravity: 0`.
 - `mm.ripple`: a white ring that spreads out over the water and fades (`size` 3.5 and `life` 1.2
@@ -393,6 +417,8 @@ mm.hud.scores([...])                                     // per player: a number
 mm.hud.out([1, 3])                                       // grey out these players' chips (they're out)
 mm.hud.timer(secondsLeft, { label, urgent, seconds })    // or null to hide; ticks in the last 10 s
 mm.hud.cooldown(ready)                                   // 0 (just used) to 1 (ready): how ready the a button is
+mm.hud.status('Round 3/12')                              // a short line in a pill beside the timer; null hides it
+mm.hud.callout({ text, color, icon, progress, flash })   // the big call of the moment ("RED!"); null hides it
 mm.hud.meter({ icon: '🥪', values: [0..1 per player], stops: ['#hex', ['#hex', 40], ...] })
 mm.hud.center('YOU WIN!', { style: 'count' | 'go' | 'bad' | 'big', ms })   // ms: 0 keeps it up
 mm.hud.banner('Text', { style: 'info' | 'warn', ms })
@@ -404,14 +430,20 @@ mm.hud.textbox({ show, placeholder })                    // typing games: the te
   show plain seconds rather than minutes and seconds.
 - `mm.hud.cooldown`: for an a button that needs a moment to recharge (a dash). The touch button
   fills up around its edge and turns yellow once it's ready; on a keyboard or gamepad a meter
-  labelled like the touch button (`touchLabel`) shows above the controls hint.
+  labelled like the touch button (`touchLabel`) shows above the controls hint. Without it, the
+  touch button is always yellow.
+- `mm.hud.callout`: a card with `text` (up to 24 characters) in `color`, an `icon` (a symbol or
+  emoji) in a swatch of that color, and a bar below that runs down as `progress` goes from 1 to 0
+  (leave it out for no bar). `flash: true` makes it blink (time's up). It pops in whenever its
+  text or color changes. It sits off to the left on wide screens and across the top on narrow
+  ones, and isn't counted in `view.screen.safe` (Flag Frenzy's call of the flag's color).
 
 The engine already shows the countdown and "GO!", the controls hint, "Spectating" for
 people who joined mid-game, the whistle at the end and the results screen.
 
 Where things sit:
-- **Along the top:** the score chips (top left) and the timer (top right). With many players on
-  a phone, the chips wrap onto two or three rows.
+- **Along the top:** the score chips (top left), the timer (top right) and the status pill just
+  before it. With many players on a phone, the chips wrap onto two or three rows.
 - **Along the bottom:** the controls hint, plus the touch controls on phones (the DASH button or
   side buttons in the bottom corners). The meter runs down the right edge.
 - **Banners:** below the chips on wide screens, and above the bottom controls on phones.
@@ -436,7 +468,8 @@ Each browser keeps two copies of the state:
   present.
 
 When an input turns up for a moment that has already been predicted, the prediction is
-rebuilt from the confirmed copy (see Smoothing corrections for making that look smooth). Because the rules are deterministic and the server and
+rebuilt from the moment it's for: browsers keep a copy of the predicted state as of each recent
+tick (see Smoothing corrections for making that look smooth). Because the rules are deterministic and the server and
 browsers run the same QuickJS build, every copy agrees. Every couple of seconds each browser
 checks its confirmed state against the server's and fetches a fresh copy if they differ.
 That's a safety net, not something that should happen.

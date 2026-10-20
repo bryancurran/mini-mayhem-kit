@@ -3,6 +3,36 @@
 `npm run update` gets the latest kit and prints what changed since yours. Uploads need the
 latest kit: Mini Mosh turns down games packed with an older one, and says how to update.
 
+## v7 (October 2026)
+
+- **Quicker in the browser, again.** Browsers now keep a copy of the predicted state as of each
+  recent tick, so when someone's input turns up late, only the ticks since that input are worked
+  out again, rather than every tick since the last confirmed state. Copying the state is a third
+  quicker, and drawing commands are written out several times quicker (every number in them now
+  goes to 4 decimal places): Bumper Bash .mm with 8 players takes about a fifth less time a
+  frame. Nothing to change in your games, and games in the library get it too. A small state
+  helps: see "The rules must be deterministic" in `docs/making-games.md`.
+- **No effects skipped after a pause.** When a frame came more than a third of a second after the
+  last one (a hitch, a slow phone), events from the moments in between only arrived in
+  `view.confirmed`, so effects played from `view.events` (a splash, a coin sound) were skipped.
+  They now come in `view.events` too.
+- **More shapes:** `dodecahedron`, `octahedron` and `lathe` (a profile spun round, for vases and
+  mushroom caps), plus the optional angles three.js has, for domes, arches and slices of pie:
+  `sphere`, `cylinder` (open-ended too), `cone`, `circle` and `ring`. Planes take segments.
+- **Things a Mosh carries:** `parent: avatar, part: 'torso' | 'left-hand' | 'right-hand'` moves a
+  node with that part of the Mosh as it runs, bobs and squashes (a cap, a flag in its hand).
+- **`geometry.set({ positions })`** moves the vertices of a mesh of your own (a flag waving, a
+  jelly wobbling), much more cheaply than a new geometry every frame.
+- **`mm.hud.status(text)`**: a short line in a pill beside the timer ("Round 3/12").
+- **`mm.hud.callout({ text, color, icon, progress, flash })`**: a big card for the call of the
+  moment ("RED!"), with a bar that runs down.
+- **`mm.camera({ safe: { top, bottom, left, right } })`** frames the picture on an area of your
+  own.
+- **Controls:** keys and d-pads send moves to the hundredth, so a diagonal is as long as straight
+  ahead (0.71 each way, not 0.7). A stick game's touch button is yellow (ready) unless the game
+  uses `mm.hud.cooldown`.
+- Packages say `"kit": 7`. Uploads need kit v7: run `npm run update`.
+
 ## v6 (October 2026)
 
 - **Smoother still, on every screen.** Things that move with the state are now drawn one tick

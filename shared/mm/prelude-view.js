@@ -25,21 +25,26 @@
   const round = (v) => Math.round(v * 1e4) / 1e4;
   const isHandle = (v) => v !== null && typeof v === 'object' && typeof v.__mm === 'string';
 
+  // Numbers in arrays (pos, rot, look, positions, ...) go out as whole numbers 10000 times too
+  // big: QuickJS writes those out several times quicker than decimals, and scene.js (unfix) puts
+  // them back as the commands arrive.
   function vec(v) {
     if (typeof v === 'number') return round(v);
-    if (Array.isArray(v)) return v.map((x) => (typeof x === 'number' ? round(x) : x));
-    return v;
+    if (!Array.isArray(v)) return v;
+    const a = new Array(v.length);
+    for (let i = 0; i < v.length; i++) a[i] = typeof v[i] === 'number' ? Math.round(v[i] * 1e4) : v[i];
+    return a;
   }
 
+  // Numbers go out to 4 decimal places (more is invisible, and slow to turn into text).
   function pack(props) {
     const o = {};
     for (const k of Object.keys(props || {})) {
       const v = props[k];
       if (v === undefined) continue;
-      if (k === 'pos' || k === 'rot' || k === 'scale' || k === 'look') o[k] = vec(v);
-      else if (k === 'material') o[k] = Array.isArray(v) ? v.map((m) => (isHandle(m) ? m.id : m)) : isHandle(v) ? v.id : v;
+      if (k === 'material') o[k] = Array.isArray(v) ? v.map((m) => (isHandle(m) ? m.id : m)) : isHandle(v) ? v.id : v;
       else if (isHandle(v)) o[k] = v.id;
-      else o[k] = v;
+      else o[k] = vec(v);
     }
     return o;
   }
@@ -108,7 +113,7 @@
   Instances.prototype.update = function (data) {
     if (!this.alive || !data) return this;
     flush(); // keeps it in order with .at
-    out.push(['ibulk', this.id, data]);
+    out.push(['ibulk', this.id, pack(data)]);
     return this;
   };
   // Places copy i: { pos, rot, scale, color, visible }. Several changes in one frame are sent as one.
@@ -202,7 +207,8 @@
       out.push(['tex', r.id, width, height, g.ops, options || {}]);
       return r;
     },
-    // { positions, normals?, uvs?, indices?, groups?: [[start, count, materialIndex]] }
+    // { positions, normals?, uvs?, indices?, groups?: [[start, count, materialIndex]] }. Its
+    // .set({ positions }) moves the same vertices somewhere else (a flag waving), cheaply.
     geometry(data) {
       const r = new Resource('geometry');
       out.push(['geo', r.id, data]);
@@ -253,6 +259,18 @@
       // touch button and, on a keyboard or gamepad, a meter along the bottom.
       cooldown(value) {
         send('cooldown', typeof value === 'number' && Number.isFinite(value) ? Math.round(Math.max(0, Math.min(1, value)) * 100) / 100 : null);
+      },
+      // A short line in a pill along the top, beside the chips ("Round 3/12"), or null to hide it.
+      status(text) {
+        send('status', text === null || text === undefined ? null : String(text));
+      },
+      // The big call of the moment: { text, color, icon, progress (0 to 1, or null), flash },
+      // or null to hide it. It pops in whenever its text or color changes.
+      callout(options) {
+        if (!options || typeof options !== 'object') return send('callout', null);
+        const o = Object.assign({}, options);
+        if (typeof o.progress === 'number') o.progress = Math.round(Math.max(0, Math.min(1, o.progress)) * 1000) / 1000;
+        send('callout', o);
       },
       // A vertical race track: { icon, values: [0..1 per player], stops: [colors] }.
       meter(options) {

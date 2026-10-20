@@ -164,8 +164,13 @@ export class Avatar {
       if (!item) continue;
       if (item.obj) this.torso.add(item.obj);
       item.feet?.forEach((shoe, i) => this.feet[i].add(shoe)); // shoes go on the feet, to walk with them
+      if (item.fit) item.obj.traverse((o) => o.material?.userData.stalk && (o.material = this.darkMat)); // an antenna's stalks, like its own
       this.worn.set(item.slot, { id, ...item });
     }
+    // An antenna from the shop takes the place of its own.
+    const own = !this.worn.has('antenna');
+    this.stalk.visible = own;
+    this.bobble.visible = own;
     this.fitHead();
   }
 
@@ -176,6 +181,10 @@ export class Avatar {
     const crowned = this.crown.visible && hat?.crowned;
     this.crown.position.y = crowned ? hat.crowned.at : CROWN_Y;
     const lift = crowned ? hat.crowned.lift : this.crown.visible ? 0 : (hat?.lift ?? 0);
+    // An antenna from the shop starts its look above whatever's on the head (the crown's points
+    // reach 0.26 above its base).
+    const antenna = this.worn.get('antenna');
+    antenna?.fit(antenna.obj, Math.max(hat?.top ?? 0, this.crown.visible ? this.crown.position.y + 0.26 : 0));
     this.stalk.scale.y = (0.32 + lift) / 0.32;
     this.stalk.position.y = ANTENNA_Y + lift / 2;
     this.bobbleY = BOBBLE_Y + lift;

@@ -48,6 +48,8 @@ export class Hud {
     this.typeForm = null;
     this.typeOptions = { show: true, placeholder: '' }; // as the game last set them
     this.cooldownEl = null;
+    this.statusEl = null;
+    this.calloutEl = null;
     this.buttonLabel = 'READY'; // the cooldown meter's label: the touch button's (set by the host)
   }
 
@@ -60,6 +62,8 @@ export class Hud {
     else if (part === 'banner') this.banner(a, b);
     else if (part === 'textbox') this.textOptions(a);
     else if (part === 'cooldown') this.cooldown(a);
+    else if (part === 'status') this.status(a);
+    else if (part === 'callout') this.callout(a);
   }
 
   scores(values) {
@@ -134,6 +138,58 @@ export class Hud {
     this.cooldownEl.hidden = ready === null;
     this.cooldownEl.querySelector('.dash-fill').style.transform = `scaleX(${ready ?? 0})`;
     this.cooldownEl.classList.toggle('ready', ready !== null && ready >= 1);
+  }
+
+  // A short line in a pill along the top, beside the chips ("Round 3/12"), or null to hide it.
+  status(text) {
+    const value = text === null || text === undefined ? '' : str(text, 24);
+    if (!this.statusEl) {
+      if (!value) return;
+      this.statusEl = document.createElement('div');
+      this.statusEl.className = 'flag-round';
+      const top = this.el.querySelector('.hud-top');
+      top.insertBefore(this.statusEl, this.timerEl);
+    }
+    this.statusEl.hidden = !value;
+    if (this.statusEl.textContent !== value) this.statusEl.textContent = value;
+  }
+
+  // The big call of the moment ("RED!"): { text, color, icon, progress (0 to 1: a bar that runs
+  // down, or null for none), flash }, or null to hide it. It pops in when its text or color
+  // changes. Off to the left on wide screens, along the top on narrow ones.
+  callout(o) {
+    if (!o || typeof o !== 'object') {
+      if (this.calloutEl) this.calloutEl.hidden = true;
+      return;
+    }
+    if (!this.calloutEl) {
+      const el = (this.calloutEl = document.createElement('div'));
+      el.className = 'flag-call';
+      el.innerHTML = '<span class="flag-swatch"></span><span class="flag-name"></span><span class="flag-bar"><i></i></span>';
+      this.el.insertBefore(el, this.bannerEl);
+      this.calloutKey = '';
+    }
+    const el = this.calloutEl;
+    const color = COLOR.test(String(o.color)) ? o.color : '#2a1840';
+    const text = str(o.text, 24);
+    const icon = str(o.icon, 4);
+    el.hidden = false;
+    if (`${text}|${color}` !== this.calloutKey) {
+      this.calloutKey = `${text}|${color}`;
+      el.style.setProperty('--c', color);
+      el.querySelector('.flag-swatch').textContent = icon;
+      el.querySelector('.flag-swatch').hidden = !icon;
+      el.querySelector('.flag-name').textContent = text;
+      // Pop in again.
+      el.classList.remove('fresh');
+      void el.offsetWidth;
+      el.classList.add('fresh');
+    }
+    const bar = el.querySelector('.flag-bar');
+    const progress = Number.isFinite(o.progress) ? Math.max(0, Math.min(1, o.progress)) : null;
+    bar.hidden = progress === null;
+    if (progress !== null) bar.firstChild.style.transform = `scaleX(${progress})`;
+    el.classList.toggle('sinking', o.flash === true);
   }
 
   // { icon, values: [0..1 per player], stops: ['#hex' | ['#hex', percent]] }
