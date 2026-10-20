@@ -20,7 +20,8 @@ little burst.
   The sky brings a matching fog. Set `shadowSize` to about the size of the play area.
 - The house setting is a platform or island floating in the sky. Give it depth: a top, a thick
   edge or rim, and an underside (Coin Dash: a grass disc on a tapered dirt cone, with a white
-  rim). Never a bare plane.
+  rim). Never a bare plane. Or an arena over the sea, for games where falling off is the
+  danger: `water: { y: -6 }` in `mm.world`, a few units below the platform (Bumper Bash).
 - Add a little scenery around the edges (trees, rocks, flags, bunting) and keep the middle clear
   for play. Scenery that never moves: build it in a group and `mm.bake` it.
 - Shadows: `shadow: 'cast'` on everything that moves, `'receive'` on the ground, `true` on big
@@ -100,8 +101,10 @@ pure black, no flat greys.
 - `tickRate` 60 for anything fast: running, driving, bumping, jumping, timing a press. 30 for
   slower games. Less only for games played one move at a time.
 - Draw positions straight from the state. The engine glides everything between ticks, so it's
-  smooth on every screen, and other players' corrections don't jump. Don't smooth positions
-  yourself on top: that only adds lag.
+  smooth on every screen. Don't smooth positions yourself on top: that only adds lag.
+- If players bump into each other or move fast, ease other players' corrections out with
+  `view.correction` (see "Smoothing corrections" in `docs/making-games.md`), so a late dash or
+  knock doesn't make anyone jump.
 - `snap: true` for anything that should jump: a respawn, a teleport, a coin that reappears
   somewhere else.
 - Do ease the things that aren't positions in the state: the camera, meters, colors fading,
@@ -129,7 +132,7 @@ instantly): a sound, a burst, and often a floating label or an avatar mode.
 | Dash, boost | `dash` | small, white | |
 | Bump into someone | `bump`, `boing` | small, both colors | squash |
 | Get hit, miss | `ouch`, `miss` | | `stuck` or `fall` mode |
-| Fall off, drop out | `fall`, `splash` in water | medium, splash colors | camera shake if big |
+| Fall off, drop out | `fall`, `splash` in water | medium, splash colors (`#ffffff`, `#bdeeff`, `#7fd8ff`), plus `mm.ripple` in water | camera shake if big |
 | Something breaks or lands hard | `crash`, `thud`, `shatter`, `splat` | medium | camera shake |
 | Reach a checkpoint, finish | `checkpoint` | big confetti at the line | |
 | Win | `win` (your own screen) | big confetti over the winner | `cheer` mode, crown |
@@ -154,7 +157,9 @@ mm.burst({ pos, count: 40, speed: 7, up: 9, life: 1.6, size: 0.16, gravity: 12, 
 
 - Scores go in the chips (`mm.hud.scores`): a number, or short text with an emoji, at most 8
   characters (`3/12`, `🏁`, `❤️❤️`).
-- A timer (`mm.hud.timer`) for any game with a time limit.
+- A timer (`mm.hud.timer`) for any game with a time limit. For a countdown to a dramatic finish
+  ("Last slice", "Time left"), give it a `label`, `seconds: true` and `urgent: 5`.
+- An ability that recharges (a dash) shows how ready it is: `mm.hud.cooldown`.
 - `intro` in the manifest: one short command shown during the countdown ("Grab the coins!").
 - `mm.hud.banner` for changes of phase ("Round 2!", "Sudden death!"), a few seconds each.
 - `mm.hud.center` for the big moments only: "YOU WIN!" (`style: 'big'`), "TIME!" (`'go'`),

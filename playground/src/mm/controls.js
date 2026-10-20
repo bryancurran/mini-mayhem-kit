@@ -8,6 +8,7 @@ import { isTouchDevice } from '../input.js';
 
 const KEY_A = new Set(['Space', 'Enter', 'NumpadEnter']);
 const KEY_B = new Set(['ShiftLeft', 'ShiftRight', 'KeyE']);
+const SHIFT = new Set(['ShiftLeft', 'ShiftRight']); // a, too, in games without b
 const KEY_DIRS = { ArrowUp: 'u', KeyW: 'u', ArrowDown: 'd', KeyS: 'd', ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r' };
 const MOVE_KEYS = { u: [0, 1], d: [0, -1], l: [-1, 0], r: [1, 0] };
 // A one-button game takes a few more keys, a click or a tap anywhere.
@@ -27,6 +28,7 @@ export class Controls {
     this.held = { a: new Set(), b: new Set() }; // what is holding each button down
     this.keys = new Set(); // direction keys held (for the stick)
     this.oneButton = spec.buttons.length === 1 && !spec.dirs && !spec.move;
+    this.hasB = spec.buttons.includes('b');
     this.pad = { a: false, b: false, u: false, d: false, l: false, r: false };
     this.touchStick = false;
     this.touchButton = false;
@@ -117,10 +119,10 @@ export class Controls {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     const code = e.code;
     let used = false;
-    if (KEY_A.has(code) || (this.oneButton && ONE_BUTTON_KEYS.has(code))) {
+    if (KEY_A.has(code) || (this.oneButton && ONE_BUTTON_KEYS.has(code)) || (!this.hasB && SHIFT.has(code))) {
       if (!e.repeat) this.down('a', `key:${code}`);
       used = true;
-    } else if (KEY_B.has(code) && this.spec.buttons.includes('b')) {
+    } else if (KEY_B.has(code) && this.hasB) {
       if (!e.repeat) this.down('b', `key:${code}`);
       used = true;
     }
@@ -226,8 +228,8 @@ export class Controls {
     for (const pad of navigator.getGamepads?.() ?? []) {
       if (!pad) continue;
       const b = pad.buttons;
-      now.a ||= Boolean(b[0]?.pressed || (this.oneButton && b[1]?.pressed));
-      now.b ||= Boolean(b[1]?.pressed && !this.oneButton);
+      now.a ||= Boolean(b[0]?.pressed || (!this.hasB && b[1]?.pressed));
+      now.b ||= Boolean(b[1]?.pressed && this.hasB);
       const [ax = 0, ay = 0] = pad.axes;
       now.l ||= Boolean(b[14]?.pressed) || ax < -0.5;
       now.r ||= Boolean(b[15]?.pressed) || ax > 0.5;

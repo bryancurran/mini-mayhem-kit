@@ -1,3 +1,4 @@
+import { isTouchDevice } from '../input.js';
 import { sfx } from '../sfx.js';
 
 // The HUD parts a packaged minigame can use (mm.hud in the sandbox), built from the same
@@ -15,6 +16,7 @@ const ms = (v, def) => (Number.isFinite(v) ? Math.max(0, Math.min(10000, v)) : d
 export class Hud {
   // players: [{ name, color, me }] in player order
   constructor(root, { players, hint }) {
+    this.root = root;
     this.players = players;
     this.el = document.createElement('div');
     this.el.className = 'hud';
@@ -29,12 +31,15 @@ export class Hud {
     root.appendChild(this.el);
     this.chipsEl = this.el.querySelector('.hud-chips');
     this.timerEl = this.el.querySelector('.hud-timer');
+    this.timerLabel = this.el.querySelector('.hud-timer-label');
     this.timerValue = this.el.querySelector('.hud-timer-value');
     this.bannerEl = this.el.querySelector('.hud-banner');
     this.centerEl = this.el.querySelector('.hud-center');
     if (hint) {
       this.el.querySelector('.hud-bottom').hidden = false;
       this.el.querySelector('.hud-hint').textContent = hint;
+    } else {
+      this.el.querySelector('.hud-hint').hidden = true;
     }
     this.chips = null;
     this.outList = [];
@@ -42,6 +47,8 @@ export class Hud {
     this.lastSecond = null;
     this.typeForm = null;
     this.typeOptions = { show: true, placeholder: '' }; // as the game last set them
+    this.cooldownEl = null;
+    this.buttonLabel = 'READY'; // the cooldown meter's label: the touch button's (set by the host)
   }
 
   apply(part, a, b) {
@@ -52,6 +59,7 @@ export class Hud {
     else if (part === 'center') this.center(a, b);
     else if (part === 'banner') this.banner(a, b);
     else if (part === 'textbox') this.textOptions(a);
+    else if (part === 'cooldown') this.cooldown(a);
   }
 
   scores(values) {
@@ -69,9 +77,11 @@ export class Hud {
       });
       this.out(this.outList);
     }
+    // An empty score leaves the chip with just the name.
     this.chips.forEach((el, i) => {
-      const text = str(values[i], 8);
+      const text = values[i] === null || values[i] === undefined ? '' : str(values[i], 8);
       if (el.textContent !== text) el.textContent = text;
+      el.hidden = text === '';
     });
   }
 
@@ -81,18 +91,49 @@ export class Hud {
     this.chips?.forEach((score, i) => score.parentElement.classList.toggle('out', this.outList.includes(i)));
   }
 
-  timer(seconds) {
+  // seconds left, or { left, label, urgent, seconds } (see mm.hud.timer).
+  timer(value) {
+    const options = value !== null && typeof value === 'object' ? value : {};
+    const seconds = value !== null && typeof value === 'object' ? value.left : value;
     if (seconds === null || !Number.isFinite(seconds)) {
       this.timerEl.hidden = true;
       return;
     }
     const secs = Math.max(0, Math.min(5999, Math.round(seconds)));
     this.timerEl.hidden = false;
-    this.timerValue.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
-    const urgent = secs <= 10 && secs > 0;
+    const label = typeof options.label === 'string' && options.label.trim() ? str(options.label, 16) : 'Time';
+    if (this.timerLabel.textContent !== label) this.timerLabel.textContent = label;
+    this.timerValue.textContent = options.seconds === true ? String(secs) : `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+    const urgentFrom = Number.isFinite(options.urgent) ? Math.max(0, Math.min(60, options.urgent)) : 10;
+    const urgent = secs <= urgentFrom && secs > 0;
     this.timerEl.classList.toggle('urgent', urgent);
     if (urgent && secs !== this.lastSecond) sfx.tick();
     this.lastSecond = secs;
+  }
+
+  // How ready the a button is (0 to 1, or null to hide it): the touch button fills up, and on a
+  // keyboard or gamepad a meter labelled like the touch button shows above the controls hint.
+  cooldown(value) {
+    const ready = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : null;
+    const button = this.root.querySelector('.dash-btn');
+    if (button) {
+      button.style.setProperty('--cd', ready ?? 1);
+      button.classList.toggle('ready', ready !== null && ready >= 1);
+    }
+    if (isTouchDevice) return;
+    if (!this.cooldownEl && ready !== null) {
+      const bottom = this.el.querySelector('.hud-bottom');
+      this.cooldownEl = document.createElement('div');
+      this.cooldownEl.className = 'dash-meter';
+      this.cooldownEl.innerHTML = '<div class="dash-fill"></div><span></span>';
+      this.cooldownEl.querySelector('span').textContent = this.buttonLabel;
+      bottom.prepend(this.cooldownEl);
+      bottom.hidden = false;
+    }
+    if (!this.cooldownEl) return;
+    this.cooldownEl.hidden = ready === null;
+    this.cooldownEl.querySelector('.dash-fill').style.transform = `scaleX(${ready ?? 0})`;
+    this.cooldownEl.classList.toggle('ready', ready !== null && ready >= 1);
   }
 
   // { icon, values: [0..1 per player], stops: ['#hex' | ['#hex', percent]] }

@@ -3,6 +3,30 @@
 `npm run update` gets the latest kit and prints what changed since yours. Uploads need the
 latest kit: Mini Mosh turns down games packed with an older one, and says how to update.
 
+## v6 (October 2026)
+
+- **Smoother still, on every screen.** Things that move with the state are now drawn one tick
+  behind the game's clock and glide between ticks by time rather than by frames, so they move at
+  an even speed on 60, 90, 120 and 144 Hz screens, however the frames fall against the ticks
+  (before, they could stutter now and then, worst on fast screens). Things you animate every
+  frame glide as before. Nothing to change in your games, and games in the library get it too.
+- **`view.correction`**: on a frame where the prediction of other players was corrected, the
+  state before and after, for the same moment. Use it to ease out the jumps a late dash or knock
+  would make: see "Smoothing corrections" in `docs/making-games.md`.
+- **Water:** `mm.world({ water: { y } })`, a sea of rolling waves, and **`mm.ripple({ pos, size,
+  life })`**, a ring spreading out over it.
+- **`mm.hud.timer(seconds, { label, urgent, seconds })`**: a label over the time ("Last slice"),
+  when it turns red and ticks, and plain seconds instead of minutes and seconds.
+- **`mm.hud.cooldown(ready)`**: how ready a recharging a button is (0 to 1). The touch button
+  fills up and turns yellow when it's ready; keyboards and gamepads get a meter above the hint.
+- **`mm.hud.scores`** with `''` for a player shows just their name on the chip.
+- **`mm.label({ style: 'me' })`**: a name tag filled in with the player's color, for "YOU".
+- **Controls:** in games without a b button, Shift also presses a, and so does a gamepad's B.
+  A stick held through the countdown counts from "GO!" (before, it only counted once it moved).
+- **Quicker prediction:** the engine copies the state several times faster, so correcting a
+  prediction takes about a third less time in the browser.
+- Packages say `"kit": 6`. Uploads need kit v6: run `npm run update`.
+
 ## v5 (October 2026)
 
 - **Smooth motion, built in.** The engine now glides every node, every instance and the camera

@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Avatar } from '../avatar.js';
-import { addClouds, addLights, addSky, noOutline, toon } from '../gfx.js';
-import { Particles } from '../particles.js';
+import { Avatar, outfitFor } from '../avatar.js';
+import { addClouds, addLights, addSky, addWater, noOutline, toon } from '../gfx.js';
+import { Particles, Ripples } from '../particles.js';
 import { sfx } from '../sfx.js';
 
 // Carries out the drawing commands a packaged minigame's view.js records (see
@@ -10,11 +10,13 @@ import { sfx } from '../sfx.js';
 // every command is checked, numbers are clamped, colors must be hex, text is only ever text,
 // and there are caps on how much a game can create.
 //
-// Games draw from their state, which only moves on at each tick of their rules (30 times a
-// second, say), so things drawn straight from it would move in steps on a 60 or 120 Hz screen.
-// So nodes and the camera glide to where the view puts them, over one tick (see Glide): a game
-// gets smooth motion without doing anything, one tick behind. smooth: false turns that off for a
-// node, and snap: true makes one move a jump (a teleport, a respawn).
+// Games draw from their state, which only moves on at each tick of their rules (60 times a
+// second, say), so things drawn straight from it would move in steps, and unevenly whenever the
+// screen's frames and the ticks don't line up. So every node and the camera glides to where the
+// view puts it (see Glide): what moves with the state is drawn one tick late, part way between
+// where it was put on the tick before and on the latest one, by the game's clock. A game gets
+// smooth motion on any screen without doing anything. smooth: false turns that off for a node,
+// and snap: true makes one move a jump (a teleport, a respawn).
 
 const LIMITS = {
   nodes: 6000,
@@ -28,6 +30,7 @@ const LIMITS = {
   commandsPerFrame: 6000,
   soundsPerFrame: 8,
   burstCount: 120,
+  ripples: 40, // on the water at once
   segments: 128,
   instances: 20_000, // copies across every mm.instances
   instancesEach: 4096,
@@ -85,47 +88,73 @@ function shapeGeometry(s) {
   }
 }
 
-// Where something is drawn, gliding to where the view last put it. A new target restarts the glide
-// from wherever it is now, so a target that moves on once a tick is followed at an even speed.
+// Where something is drawn, gliding to where the view puts it. Most things move with the game's
+// state, whose targets change once a tick: those are drawn one tick behind the game's clock, part
+// way along the line from the target of the tick before to the latest one, by time rather than
+// by frames, so the speed stays even however a screen's frames fall against the ticks. Things
+// the view animates every frame (their target changes again within a tick) glide from where they
+// are to each new target over one tick instead (a corrected prediction can move a target within
+// a tick too, so frames with one don't count). Times are game milliseconds; clock is the host's
+// (see SceneHost.setClock).
 class Glide {
   constructor(obj) {
     this.obj = obj; // anything with position, quaternion and scale
-    this.fromPos = new THREE.Vector3();
-    this.fromQuat = new THREE.Quaternion();
-    this.fromScale = new THREE.Vector3();
+    this.fromPos = obj.position.clone();
+    this.fromQuat = obj.quaternion.clone();
+    this.fromScale = obj.scale.clone();
     this.toPos = obj.position.clone();
     this.toQuat = obj.quaternion.clone();
     this.toScale = obj.scale.clone();
-    this.t0 = 0;
+    this.fromAt = 0;
+    this.toAt = 0;
+    this.everyFrame = false; // animated every frame rather than every tick
+    this.frame = -1; // the frame its target last changed
   }
 
   // Jumps to the target.
-  snap() {
+  snap(clock) {
+    this.fromPos.copy(this.toPos);
+    this.fromQuat.copy(this.toQuat);
+    this.fromScale.copy(this.toScale);
+    this.fromAt = this.toAt = this.everyFrame ? clock.now : clock.at;
     this.obj.position.copy(this.toPos);
     this.obj.quaternion.copy(this.toQuat);
     this.obj.scale.copy(this.toScale);
   }
 
-  // A new target (any of pos, quat, scale): returns whether it moved. The glide so far is caught up
-  // to now first, so the new one starts from where it is this frame (not the last one: that would
-  // leave it standing still for a frame each tick).
-  aim(pos, quat, scale, now, ms) {
+  // A new target (any of pos, quat, scale). Returns whether it moved.
+  aim(pos, quat, scale, clock) {
     const moved = (pos && pos.distanceToSquared(this.toPos) > 1e-10) || (quat && 1 - Math.abs(quat.dot(this.toQuat)) > 1e-10) || (scale && scale.distanceToSquared(this.toScale) > 1e-10);
     if (!moved) return false;
-    this.step(now, ms);
-    this.fromPos.copy(this.obj.position);
-    this.fromQuat.copy(this.obj.quaternion);
-    this.fromScale.copy(this.obj.scale);
+    if (!this.everyFrame && clock.at === this.toAt && this.frame >= 0 && this.frame !== clock.frame && !clock.rebuilt) this.everyFrame = true;
+    this.frame = clock.frame;
+    if (this.everyFrame) {
+      // From where it is now, over one tick.
+      this.step(clock);
+      this.fromPos.copy(this.obj.position);
+      this.fromQuat.copy(this.obj.quaternion);
+      this.fromScale.copy(this.obj.scale);
+      this.fromAt = clock.now;
+      this.toAt = clock.now + clock.glide;
+    } else if (clock.at > this.toAt) {
+      // A new tick: on from the old target, from the last tick that target held.
+      this.fromPos.copy(this.toPos);
+      this.fromQuat.copy(this.toQuat);
+      this.fromScale.copy(this.toScale);
+      this.fromAt = Math.min(clock.at, Math.max(this.toAt, clock.before));
+      this.toAt = clock.at;
+    }
     if (pos) this.toPos.copy(pos);
     if (quat) this.toQuat.copy(quat);
     if (scale) this.toScale.copy(scale);
-    this.t0 = now;
     return true;
   }
 
-  // Moves along; returns false once it's there.
-  step(now, ms) {
-    const k = ms > 0 ? Math.min(1, (now - this.t0) / ms) : 1;
+  // Shows it as it is now; returns false once it's there.
+  step(clock) {
+    const t = this.everyFrame ? clock.now : clock.shows;
+    const span = this.toAt - this.fromAt;
+    const k = span > 0 ? Math.min(1, Math.max(0, (t - this.fromAt) / span)) : 1;
     this.obj.position.lerpVectors(this.fromPos, this.toPos, k);
     this.obj.quaternion.slerpQuaternions(this.fromQuat, this.toQuat, k);
     this.obj.scale.lerpVectors(this.fromScale, this.toScale, k);
@@ -156,24 +185,29 @@ class InstanceSet {
       this.shell.frustumCulled = false;
       this.mesh.add(this.shell);
     }
-    // Shown and target transforms, and where each glide started: 10 numbers a copy.
+    // Shown, target and previous target transforms (as Glide has them): 10 numbers a copy.
     this.cur = new Float32Array(count * 10);
     this.to = new Float32Array(count * 10);
     this.from = new Float32Array(count * 10);
-    this.t0 = new Float64Array(count);
+    this.fromAt = new Float64Array(count);
+    this.toAt = new Float64Array(count);
+    this.everyFrame = new Uint8Array(count); // see Glide
+    this.frame = new Int32Array(count).fill(-1);
     this.shown = new Uint8Array(count); // placed and visible
     this.moving = new Set();
     for (let i = 0; i < count; i++) {
-      for (const a of [this.cur, this.to]) a.set([0, 0, 0, 0, 0, 0, 1, 1, 1, 1], i * 10);
+      for (const a of [this.cur, this.to, this.from]) a.set([0, 0, 0, 0, 0, 0, 1, 1, 1, 1], i * 10);
       this.mesh.setMatrixAt(i, HIDDEN);
       this.shell?.setMatrixAt(i, HIDDEN);
     }
   }
 
-  // Copy i's shown transform at time now (glide k), into cur.
-  advance(i, now, ms) {
+  // Copy i's shown transform now, into cur (see Glide.step).
+  advance(i, clock) {
     const o = i * 10;
-    const k = ms > 0 ? Math.min(1, (now - this.t0[i]) / ms) : 1;
+    const t = this.everyFrame[i] ? clock.now : clock.shows;
+    const span = this.toAt[i] - this.fromAt[i];
+    const k = span > 0 ? Math.min(1, Math.max(0, (t - this.fromAt[i]) / span)) : 1;
     for (let j = 0; j < 3; j++) this.cur[o + j] = this.from[o + j] + (this.to[o + j] - this.from[o + j]) * k;
     for (let j = 7; j < 10; j++) this.cur[o + j] = this.from[o + j] + (this.to[o + j] - this.from[o + j]) * k;
     tmpQuatA.fromArray(this.from, o + 3).slerp(tmpQuatB.fromArray(this.to, o + 3), k).toArray(this.cur, o + 3);
@@ -197,47 +231,55 @@ class InstanceSet {
     this.dirty = true;
   }
 
-  // p: { pos, rot, scale, color, visible }, checked. glide: ms to glide over (0 to jump).
-  place(i, p, now, glide) {
+  // p: { pos, rot, scale, color, visible }, checked. clock: the host's (see Glide), or null to jump.
+  place(i, p, clock) {
     const o = i * 10;
     const first = !this.placed?.has(i);
     (this.placed ??= new Set()).add(i);
     const reappears = p.visible !== false && !this.shown[i];
     if (p.visible !== undefined || first) this.shown[i] = p.visible === false ? 0 : 1;
+    const next = tmpCopy;
+    next.set(this.to.subarray(o, o + 10));
+    if (p.pos) next.set(p.pos, 0);
+    if (p.rot) tmpQuat.setFromEuler(tmpEuler.fromArray(p.rot)).toArray(next, 3);
+    if (p.scale) next.set(p.scale, 7);
     let moved = false;
-    if (p.pos) {
-      moved ||= p.pos.some((v, j) => v !== this.to[o + j]);
-      this.to.set(p.pos, o);
-    }
-    if (p.rot) {
-      tmpQuat.setFromEuler(tmpEuler.fromArray(p.rot)).toArray(this.to, o + 3);
-      moved = true;
-    }
-    if (p.scale) {
-      moved ||= p.scale.some((v, j) => v !== this.to[o + 7 + j]);
-      this.to.set(p.scale, o + 7);
-    }
+    for (let j = 0; j < 10 && !moved; j++) moved = Math.abs(next[j] - this.to[o + j]) > 1e-6;
     if (p.color) {
       const first = !this.mesh.instanceColor;
       this.mesh.setColorAt(i, tmpColor.set(p.color));
       this.mesh.instanceColor.needsUpdate = true;
       if (first) this.mesh.material.needsUpdate = true; // its shader starts using copies' colors
     }
-    if (first || reappears || !glide || p.snap) {
-      this.cur.set(this.to.subarray(o, o + 10), o);
+    if (first || reappears || !clock || p.snap) {
+      this.to.set(next, o);
+      this.from.set(next, o);
+      this.cur.set(next, o);
+      if (clock) this.fromAt[i] = this.toAt[i] = this.everyFrame[i] ? clock.now : clock.at;
       this.moving.delete(i);
     } else if (moved) {
-      this.advance(i, now, glide); // from where it is this frame (see Glide.aim)
-      this.from.set(this.cur.subarray(o, o + 10), o);
-      this.t0[i] = now;
+      if (!this.everyFrame[i] && clock.at === this.toAt[i] && this.frame[i] >= 0 && this.frame[i] !== clock.frame && !clock.rebuilt) this.everyFrame[i] = 1;
+      this.frame[i] = clock.frame;
+      if (this.everyFrame[i]) {
+        this.advance(i, clock);
+        this.from.set(this.cur.subarray(o, o + 10), o);
+        this.fromAt[i] = clock.now;
+        this.toAt[i] = clock.now + clock.glide;
+      } else if (clock.at > this.toAt[i]) {
+        this.from.set(this.to.subarray(o, o + 10), o);
+        this.fromAt[i] = Math.min(clock.at, Math.max(this.toAt[i], clock.before));
+        this.toAt[i] = clock.at;
+      }
+      this.to.set(next, o);
+      this.advance(i, clock);
       this.moving.add(i);
     }
     this.write(i);
   }
 
-  step(now, ms) {
+  step(clock) {
     for (const i of this.moving) {
-      if (!this.advance(i, now, ms)) this.moving.delete(i);
+      if (!this.advance(i, clock)) this.moving.delete(i);
       this.write(i);
     }
     if (this.dirty) {
@@ -256,6 +298,7 @@ const tmpQuatA = new THREE.Quaternion();
 const tmpQuatB = new THREE.Quaternion();
 const tmpMatrix = new THREE.Matrix4();
 const tmpColor = new THREE.Color();
+const tmpCopy = new Float32Array(10);
 
 function numbers(list, max, name) {
   if (!Array.isArray(list) || list.length > max) throw new BadCommand(`${name}: an array of at most ${max} numbers`);
@@ -286,16 +329,40 @@ export class SceneHost {
     this.instanceSets = new Set();
     this.worldDone = new Set();
     this.particles = null;
+    this.ripples = null;
     this.clouds = null;
+    this.water = null;
+    this.time = 0; // seconds since the game's first frame (the water's waves)
     this.badCount = 0;
     this.safe = null; // the part of the screen the HUD doesn't cover (set by the host each frame)
     this.safeCamera = false;
     this.glideMs = 0; // one tick of the game's rules (set by the host), 0 for no gliding
+    // The game's clock this frame (set by the host, see setClock): its time now, the tick time of
+    // the state being drawn and of the one drawn on an earlier frame, the time things moving with
+    // the state are shown at, one tick of gliding, a frame count, and whether the prediction was
+    // corrected this frame.
+    this.clock = { now: 0, at: 0, before: 0, shows: 0, glide: 0, frame: 0, rebuilt: false };
     this.gliding = new Set(); // Glides on the move
     this.cameraGlide = null; // { glide, look: Vector3 (shown), lookTo, lookFrom, smooth }
   }
 
   // ---- applying commands ------------------------------------------------------------------
+
+  // Once a frame, before apply(): the game's time now and the tick time of the state the commands
+  // are drawn from (both game milliseconds), and whether the prediction was rebuilt since the last
+  // frame. Things that move with the state are shown one tick behind now.
+  setClock(now, at, rebuilt = false) {
+    const c = this.clock;
+    if (at !== c.at) {
+      c.before = c.at;
+      c.at = at;
+    }
+    c.now = now;
+    c.shows = now - this.glideMs;
+    c.glide = this.glideMs;
+    c.frame++;
+    c.rebuilt = rebuilt;
+  }
 
   apply(commands) {
     if (!Array.isArray(commands)) return;
@@ -319,6 +386,7 @@ export class SceneHost {
         else if (op === 'camera') this.setCamera(a ?? {});
         else if (op === 'world') this.world(a ?? {});
         else if (op === 'burst') this.burst(a ?? {});
+        else if (op === 'ripple') this.ripple(a ?? {});
         else if (op === 'sound') {
           if (sounds++ < LIMITS.soundsPerFrame && SOUNDS.has(a)) {
             const args = (Array.isArray(b) ? b : []).slice(0, 3).filter((x) => typeof x === 'boolean' || (typeof x === 'number' && Number.isFinite(x)));
@@ -375,7 +443,8 @@ export class SceneHost {
     } else if (kind === 'mesh') {
       n.obj = new THREE.Mesh(this.shape(['box', 1, 1, 1]), this.colorMaterial('#ffffff'));
     } else if (kind === 'avatar') {
-      n.avatar = new Avatar(color(props.color, '#ff5c8a'));
+      n.color = color(props.color, '#ff5c8a');
+      n.avatar = new Avatar(n.color);
       n.obj = n.avatar.group;
       n.mode = 'idle';
       n.speed = 0;
@@ -416,10 +485,10 @@ export class SceneHost {
       if (quat) n.glide.toQuat.copy(quat);
       if (scale) n.glide.toScale.copy(scale);
       if (pos || quat || scale || p.snap === true || reappears) {
-        n.glide.snap();
+        n.glide.snap(this.clock);
         this.gliding.delete(n.glide);
       }
-    } else if (n.glide.aim(pos, quat, scale, performance.now(), this.glideMs)) {
+    } else if (n.glide.aim(pos, quat, scale, this.clock)) {
       this.gliding.add(n.glide);
     }
     if (p.visible !== undefined) o.visible = p.visible !== false;
@@ -442,7 +511,11 @@ export class SceneHost {
         o.receiveShadow = s === true || s === 'receive';
       }
     } else if (n.kind === 'avatar') {
-      if (p.color !== undefined) n.avatar.setColor(color(p.color, '#ff5c8a'));
+      if (p.color !== undefined && color(p.color, '#ff5c8a') !== n.color) {
+        n.color = color(p.color, '#ff5c8a');
+        n.avatar.setColor(n.color);
+        n.avatar.setOutfit(outfitFor(n.color)); // a player's critter wears their outfit
+      }
       if (p.mode !== undefined && AVATAR_MODES.has(p.mode)) n.mode = p.mode;
       if (p.speed !== undefined) n.speed = num(p.speed, 0, 50, 0);
       if (p.crown !== undefined) n.avatar.setCrown(p.crown === true);
@@ -460,7 +533,7 @@ export class SceneHost {
       if (p.style !== undefined || p.tone !== undefined || fresh) {
         n.style = p.style ?? n.style ?? 'tag';
         n.tone = p.tone ?? n.tone;
-        el.className = n.style === 'float' ? `stack-float${LABEL_TONES.has(n.tone) ? ` ${n.tone}` : ''}` : 'nametag in-game';
+        el.className = n.style === 'float' ? `stack-float${LABEL_TONES.has(n.tone) ? ` ${n.tone}` : ''}` : n.style === 'me' ? 'nametag in-game me' : 'nametag in-game';
       }
       if (p.color !== undefined) el.style.setProperty('--c', color(p.color, '#999999'));
       if (p.opacity !== undefined) el.style.opacity = String(num(p.opacity, 0, 1, 1));
@@ -498,8 +571,7 @@ export class SceneHost {
   place(n, list) {
     if (n.kind !== 'instances') throw new BadCommand('only instances can be placed');
     if (!Array.isArray(list) || list.length > n.count) throw new BadCommand('instances: a list of [index, properties]');
-    const now = performance.now();
-    const glide = n.smooth === false ? 0 : this.glideMs;
+    const clock = n.smooth === false || !this.glideMs ? null : this.clock;
     for (const entry of list) {
       if (!Array.isArray(entry)) continue;
       const [i, p] = entry;
@@ -519,8 +591,7 @@ export class SceneHost {
           visible: p.visible === undefined ? undefined : p.visible !== false,
           snap: p.snap === true,
         },
-        now,
-        glide,
+        clock,
       );
     }
   }
@@ -541,8 +612,7 @@ export class SceneHost {
     const scale = list('scale', 1);
     const colors = d.color === undefined ? null : Array.isArray(d.color) && from + d.color.length <= n.count ? d.color : null;
     const copies = Math.max(pos ? pos.length / 3 : 0, rot ? rot.length / 3 : 0, scale ? scale.length : 0, colors ? colors.length : 0);
-    const now = performance.now();
-    const glide = n.smooth === false ? 0 : this.glideMs;
+    const clock = n.smooth === false || !this.glideMs ? null : this.clock;
     const n3 = (a, k) => [num(a[k], -BIG, BIG, 0), num(a[k + 1], -BIG, BIG, 0), num(a[k + 2], -BIG, BIG, 0)];
     for (let j = 0; j < copies; j++) {
       const p = { snap: d.snap === true };
@@ -553,14 +623,14 @@ export class SceneHost {
         p.scale = [s, s, s];
       }
       if (colors && j < colors.length && colors[j] !== null) p.color = color(colors[j]);
-      n.instances.place(from + j, p, now, glide);
+      n.instances.place(from + j, p, clock);
     }
     // shown: the first `shown` copies show, the rest hide.
     if (Number.isInteger(d.shown)) {
       const shown = Math.max(0, Math.min(n.count, d.shown));
       for (let i = 0; i < n.count; i++) {
         const want = i < shown;
-        if (n.instances.placed?.has(i) && Boolean(n.instances.shown[i]) !== want) n.instances.place(i, { visible: want }, now, glide);
+        if (n.instances.placed?.has(i) && Boolean(n.instances.shown[i]) !== want) n.instances.place(i, { visible: want }, clock);
       }
     }
   }
@@ -888,23 +958,22 @@ export class SceneHost {
     if (p.smooth !== undefined) c.smooth = p.smooth !== false;
     const pos = p.pos !== undefined ? tmpPos.fromArray(vec3(p.pos, [0, 5, 10])) : null;
     const look = p.look !== undefined ? new THREE.Vector3().fromArray(vec3(p.look, [0, 0, 0])) : null;
-    const now = performance.now();
     if (fresh || p.snap === true || !c.smooth || !this.glideMs) {
       if (pos) c.glide.toPos.copy(pos);
       if (look) c.lookGlide.toPos.copy(look);
-      cam.position.copy(c.glide.toPos);
-      c.look.position.copy(c.lookGlide.toPos);
+      c.glide.snap(this.clock);
+      c.lookGlide.snap(this.clock);
       this.gliding.delete(c.glide);
       this.gliding.delete(c.lookGlide);
     } else {
-      if (pos && c.glide.aim(pos, null, null, now, this.glideMs)) this.gliding.add(c.glide);
-      if (look && c.lookGlide.aim(look, null, null, now, this.glideMs)) this.gliding.add(c.lookGlide);
+      if (pos && c.glide.aim(pos, null, null, this.clock)) this.gliding.add(c.glide);
+      if (look && c.lookGlide.aim(look, null, null, this.clock)) this.gliding.add(c.lookGlide);
     }
     cam.lookAt(c.look.position);
   }
 
   // Each part of the world can be added once: { sky, lights: { shadowSize }, clouds: {...},
-  // background, fog: [color, near, far] }.
+  // water: { y }, background, fog: [color, near, far] }.
   world(o) {
     const once = (key) => !this.worldDone.has(key) && this.worldDone.add(key);
     if (o.sky && once('sky')) addSky(this.scene);
@@ -921,6 +990,7 @@ export class SceneHost {
         maxY: num(c.maxY, minY, 200, 50),
       });
     }
+    if (o.water && once('water')) this.water = addWater(this.scene, num(o.water.y, -1000, 1000, 0));
     if (o.background !== undefined && once('background')) this.scene.background = new THREE.Color(color(o.background));
     if (Array.isArray(o.fog) && once('fog')) this.scene.fog = new THREE.Fog(color(o.fog[0]), num(o.fog[1], 0, 1e4, 50), num(o.fog[2], 0, 1e4, 300));
   }
@@ -938,6 +1008,14 @@ export class SceneHost {
       gravity: num(o.gravity, -100, 100, 6),
       colors: colors.length ? colors : ['#ffffff'],
     });
+  }
+
+  // A ring spreading out over the water: { pos, size, life }.
+  ripple(o) {
+    this.ripples ??= new Ripples(this.scene);
+    if (this.ripples.active.length >= LIMITS.ripples) return;
+    const [x, y, z] = vec3(o.pos, [0, 0, 0]);
+    this.ripples.spawn(x, y, z, { size: num(o.size, 0.1, 50, 3), life: num(o.life, 0.1, 5, 1.2) });
   }
 
   // ---- per frame and cleanup --------------------------------------------------------------
@@ -963,14 +1041,16 @@ export class SceneHost {
   }
 
   tick(dt) {
-    const now = performance.now();
-    for (const g of this.gliding) if (!g.step(now, this.glideMs)) this.gliding.delete(g);
-    for (const set of this.instanceSets) set.step(now, this.glideMs);
+    for (const g of this.gliding) if (!g.step(this.clock)) this.gliding.delete(g);
+    for (const set of this.instanceSets) set.step(this.clock);
     if (this.cameraGlide) this.camera.lookAt(this.cameraGlide.look.position);
     this.frameSafe();
     for (const n of this.nodes.values()) if (n.avatar) n.avatar.update(dt, n.mode, n.speed);
     this.particles?.update(dt);
+    this.ripples?.update(dt);
     this.clouds?.update(dt);
+    this.time += dt;
+    this.water?.update(this.time);
   }
 
   // Frees what disposeScene() leaves alone: cached shapes and colors, and the game's materials,
@@ -982,6 +1062,7 @@ export class SceneHost {
       if (r.kind === 'material' && r.value.userData.ownMap) r.value.map?.dispose();
       r.value.dispose();
     }
+    this.ripples?.geo.dispose();
     this.shapeCache.clear();
     this.colorCache.clear();
     this.nodes.clear();

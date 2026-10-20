@@ -201,7 +201,9 @@ and `npm run play`) rather than assuming. Compare it with `examples/`.
 
 - **Motion:** `tickRate` 60 for anything fast (running, driving, bumping, jumping), 30 for
   slower games. Positions straight from the state (the engine glides them), `snap: true` for
-  jumps. Nothing should move in steps or jitter.
+  jumps. Nothing should move in steps or jitter. If players knock each other about, ease other
+  players' corrections out with `view.correction` ("Smoothing corrections" in
+  `docs/making-games.md`), and play it with the playground's Delay at 100 or 200 to see them.
 - **Feel:** every action answers straight away with a sound (`mm.sound`), a burst
   (`mm.burst`), an avatar mode (`jump`, `happy`, `fall`) or floating text (a `float` label).
   Hits, catches, scores and knock-outs deserve something bigger.

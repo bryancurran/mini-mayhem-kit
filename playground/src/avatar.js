@@ -1,5 +1,7 @@
 import * as THREE from 'three';
+import { cleanOutfit } from '../../shared/cosmetics.js';
 import { toon } from './gfx.js';
+import { makeItem } from './outfits.js';
 
 // A chubby little party critter. Origin is at its feet; it faces +z. About 1.7 units tall.
 
@@ -53,8 +55,25 @@ const shared = {
 // Shared resources outlive any single scene; disposeScene() skips them.
 for (const r of [...Object.values(geo), ...Object.values(shared)]) r.userData.shared = true;
 
+// What each player in the room wears, by their color (unique in a room), so every game's critters
+// wear it without the games knowing about outfits. main.js keeps it up to date.
+const roomOutfits = new Map(); // color -> outfit
+
+export function setRoomOutfits(players) {
+  roomOutfits.clear();
+  for (const p of players ?? []) if (p.outfit?.length) roomOutfits.set(p.color, p.outfit);
+}
+
+export const outfitFor = (color) => roomOutfits.get(color) ?? [];
+
+const ANTENNA_Y = 1.28; // the stalk's middle (it's 0.32 long), with the bobble on top
+const BOBBLE_Y = 1.46;
+const CROWN_Y = 1.07;
+
 export class Avatar {
-  constructor(color) {
+  // outfit: the cosmetics it wears (shared/cosmetics.js); by default, whatever the room's player
+  // in this color wears.
+  constructor(color, outfit = outfitFor(color)) {
     this.group = new THREE.Group();
     this.rig = new THREE.Group(); // animated part; the root group is positioned by the owner
     this.group.add(this.rig);
@@ -93,13 +112,14 @@ export class Avatar {
       return foot;
     });
 
-    mesh(geo.stalk, this.darkMat, 0, 1.28, 0, this.torso);
-    this.bobble = mesh(geo.bobble, shared.gold, 0, 1.46, 0, this.torso);
+    this.stalk = mesh(geo.stalk, this.darkMat, 0, ANTENNA_Y, 0, this.torso);
+    this.bobble = mesh(geo.bobble, shared.gold, 0, BOBBLE_Y, 0, this.torso);
+    this.bobbleY = BOBBLE_Y;
 
     // The crown's base sits where the head's curve is CROWN_RADIUS wide, and a rim hides
     // where the band meets the head.
     this.crown = new THREE.Group();
-    this.crown.position.set(0, 1.07, 0);
+    this.crown.position.set(0, CROWN_Y, 0);
     this.crown.rotation.z = 0.12;
     mesh(geo.crown, shared.crownGold, 0, 0, 0, this.crown);
     mesh(geo.crownRim, shared.crownGold, 0, 0.03, 0, this.crown);
@@ -113,6 +133,9 @@ export class Avatar {
 
     this.time = Math.random() * 10;
     this.mode = 'idle';
+    this.speed = 0;
+    this.worn = new Map(); // slot -> { id, obj, lift, animate }
+    this.setOutfit(outfit);
   }
 
   setColor(color) {
@@ -122,11 +145,45 @@ export class Avatar {
 
   setCrown(visible) {
     this.crown.visible = visible;
+    this.fitHead();
+  }
+
+  // Puts on these cosmetics (and takes off anything else).
+  setOutfit(outfit) {
+    const ids = cleanOutfit(outfit);
+    for (const [slot, w] of this.worn) {
+      if (ids.includes(w.id)) continue;
+      w.obj?.removeFromParent();
+      w.feet?.forEach((shoe) => shoe.removeFromParent());
+      this.worn.delete(slot);
+    }
+    for (const id of ids) {
+      if ([...this.worn.values()].some((w) => w.id === id)) continue;
+      const item = makeItem(id);
+      if (!item) continue;
+      if (item.obj) this.torso.add(item.obj);
+      item.feet?.forEach((shoe, i) => this.feet[i].add(shoe)); // shoes go on the feet, to walk with them
+      this.worn.set(item.slot, { id, ...item });
+    }
+    this.fitHead();
+  }
+
+  // The crown (the host's, the leader's) goes on top of any hat, and the antenna grows to poke out
+  // of the top of whatever's on the head: it always shows.
+  fitHead() {
+    const hat = this.worn.get('head');
+    const crowned = this.crown.visible && hat?.crowned;
+    this.crown.position.y = crowned ? hat.crowned.at : CROWN_Y;
+    const lift = crowned ? hat.crowned.lift : this.crown.visible ? 0 : (hat?.lift ?? 0);
+    this.stalk.scale.y = (0.32 + lift) / 0.32;
+    this.stalk.position.y = ANTENNA_Y + lift / 2;
+    this.bobbleY = BOBBLE_Y + lift;
   }
 
   // mode: 'idle' | 'happy' | 'run' | 'jump' | 'fall' | 'stuck' | 'swim' | 'balance' | 'sleep' | 'cheer'
   update(dt, mode = this.mode, speed = 0) {
     this.mode = mode;
+    this.speed = speed;
     this.time += dt;
     const t = this.time;
     const torso = this.torso;
@@ -141,7 +198,7 @@ export class Avatar {
     rh.position.set(0.64, 0.42, 0.05);
     lf.position.set(-0.24, 0.1, 0.06);
     rf.position.set(0.24, 0.1, 0.06);
-    this.bobble.position.set(0, 1.46, 0);
+    this.bobble.position.set(0, this.bobbleY, 0);
 
     if (mode === 'idle') {
       const breathe = Math.sin(t * 3);
@@ -220,6 +277,8 @@ export class Avatar {
       lh.position.y -= 0.12;
       rh.position.y -= 0.12;
     }
+
+    for (const w of this.worn.values()) w.animate?.(w.obj, this, dt, speed);
   }
 
   dispose() {

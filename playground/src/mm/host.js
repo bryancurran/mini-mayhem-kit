@@ -50,11 +50,12 @@ class ScriptedView {
     this.hud = new Hud(ctx.hudRoot, { players: this.players, hint });
     if (!this.isPlaying) this.hud.banner('Spectating · you’ll play next round', { style: 'info' });
     this.host = new SceneHost(this.scene, this.camera, { hud: this.hud, onBadCommand: (msg) => console.warn(`[${id}] ${msg}`) });
-    // Things glide between where the view puts them over one tick of the rules (see SceneHost).
+    // Things are drawn one tick of the rules late, gliding between ticks (see SceneHost).
     this.host.glideMs = Math.min(100, 1000 / this.rate);
 
     this.inbox = { log: [], fin: this.init.fin ?? 0, hash: null, reset: null };
     this.nextInput = 0;
+    this.startMove = null; // the stick as it's held during the countdown
     this.box = null;
     this.controls = null;
     this.manifest = null;
@@ -136,6 +137,7 @@ class ScriptedView {
       );
       if (commands.length > MM.maxFrameBytes) throw new Error(`drew ${Math.round(commands.length / 1048576)} MB of commands while setting up`);
       this.host.apply(JSON.parse(commands));
+      this.hud.buttonLabel = pkg.manifest.input.touchLabel ?? 'READY';
       if (this.isPlaying && !this.over) {
         this.controls = new Controls({ input: this.ctx.input, hudRoot: this.ctx.hudRoot, hud: this.hud, spec: pkg.manifest.input, clock: () => Math.round(this.gameMs()) });
       }
@@ -213,8 +215,17 @@ class ScriptedView {
     // Our inputs go to the server straight away and into the prediction this frame.
     const local = [];
     if (this.controls && !this.over) {
+      // Before GO only the stick counts: wherever it's held then is sent at GO.
+      const polled = [];
       for (const [t, a] of this.controls.poll()) {
-        if (t < 0) continue; // before GO
+        if (t >= 0) polled.push([t, a]);
+        else if (a[0] === 'm') this.startMove = a;
+      }
+      if (this.startMove && this.gameMs() >= 0) {
+        if (this.startMove[1] || this.startMove[2]) polled.unshift([0, this.startMove]);
+        this.startMove = null;
+      }
+      for (const [t, a] of polled) {
         const c = ++this.nextInput;
         this.ctx.net.send('input', { a, t, c });
         local.push([c, t, a]);
@@ -261,6 +272,7 @@ class ScriptedView {
       this.load = { spent: 0, since: started };
     }
     const s = this.stats;
+    const rebuilt = out.r !== s.rebuilds;
     s.frames++;
     s.sandboxMs += spent;
     s.worstMs = Math.max(s.worstMs, spent);
@@ -279,6 +291,7 @@ class ScriptedView {
     }
 
     try {
+      this.host.setClock(args.now, (out.p * 1000) / this.rate, rebuilt);
       this.host.apply(out.c);
     } catch (e) {
       this.fail(e);

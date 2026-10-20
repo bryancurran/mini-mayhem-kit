@@ -226,6 +226,10 @@
     burst(options) {
       out.push(['burst', pack(options)]);
     },
+    // A ring spreading out over water and fading: { pos, size, life }.
+    ripple(options) {
+      out.push(['ripple', pack(options)]);
+    },
     sound(name, ...args) {
       out.push(['sound', name, args]);
     },
@@ -238,9 +242,17 @@
       out(players) {
         send('out', players);
       },
-      // Seconds left (rounded up), or null to hide the timer.
-      timer(seconds) {
-        send('timer', seconds === null || seconds === undefined ? null : Math.max(0, Math.ceil(seconds)));
+      // Seconds left (rounded up), or null to hide the timer. options: { label (above the time,
+      // 'Time' if left out), urgent (it turns red and ticks from this many seconds left; 10),
+      // seconds: true (plain seconds rather than minutes:seconds) }.
+      timer(seconds, options) {
+        const value = seconds === null || seconds === undefined ? null : Math.max(0, Math.ceil(seconds));
+        send('timer', options && value !== null ? Object.assign({}, options, { left: value }) : value);
+      },
+      // How ready the a button is after it's used, from 0 (just used) to 1 (ready): fills the
+      // touch button and, on a keyboard or gamepad, a meter along the bottom.
+      cooldown(value) {
+        send('cooldown', typeof value === 'number' && Number.isFinite(value) ? Math.round(Math.max(0, Math.min(1, value)) * 100) / 100 : null);
       },
       // A vertical race track: { icon, values: [0..1 per player], stops: [colors] }.
       meter(options) {

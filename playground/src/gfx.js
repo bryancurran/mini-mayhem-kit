@@ -115,6 +115,16 @@ export function addClouds(scene, { count = 14, minRadius = 70, maxRadius = 170, 
   };
 }
 
+// A gentle breeze that slowly swings back and forth, with gusts rolling across from one side.
+// Horizontal air velocity (units per second) at time t and position x, z.
+export function breeze(t, x, z, out = { x: 0, z: 0 }) {
+  const drift = Math.sin(t * 0.045 + 1.2);
+  const gust = Math.max(0, Math.sin(t * 0.33 - x * 0.05) + Math.sin(t * 0.51 - x * 0.035 + 2.1) - 0.7);
+  out.x = 0.55 * drift + (drift < 0 ? -0.6 : 0.6) * gust + 0.15 * Math.sin(t * 0.9 + z * 0.3);
+  out.z = 0.2 * Math.sin(t * 0.07 + 4) + 0.1 * Math.sin(t * 0.7 + x * 0.2);
+  return out;
+}
+
 export function addWater(scene, y) {
   const geo = new THREE.PlaneGeometry(700, 700, 140, 140);
   geo.rotateX(-Math.PI / 2);

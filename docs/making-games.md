@@ -65,11 +65,14 @@ to the game's library (see Uploading).
 
 | input | keyboard | gamepad | touch |
 |---|---|---|---|
-| `buttons: ["a"]` | Space / Enter (a one-button game also takes ↓, S, Shift, a click) | A | depends on `touch` |
+| `buttons: ["a"]` | Space / Enter / Shift (a one-button game also takes ↓, S, a click) | A or B | depends on `touch` |
 | `buttons: ["a", "b"]` | a: Space / Enter, b: Shift / E | A, B | |
 | `dirs: true` (taps) | arrows / WASD | d-pad, stick flicks | |
 | `move: true` (a stick) | arrows / WASD held | left stick, d-pad | |
 | `text: "enter"` or `"live"` (typing) | typing in a text box | can't play | the phone's keyboard |
+
+The stick counts from "GO!": where it's held during the countdown is sent the moment the game
+starts, so a player who holds a direction through the countdown sets off straight away.
 
 `touch` picks the phone layout:
 - `tap`: tap anywhere = a.
@@ -209,6 +212,9 @@ not for someone joining mid-game). `render(state, view)` runs every frame.
   instantly. A predicted event is never taken back: if the prediction gets corrected, the
   event isn't retracted, and a corrected version (with different contents) can arrive as well.
 - `confirmed`: events that are final, a third of a second or so later.
+- `correction`: on a frame where the prediction was corrected, `{ was, now }`: the state as it
+  was predicted on the last frame, and as it is now predicted for that same moment. `null` on
+  other frames. See Smoothing corrections.
 - `ended`
 
 `state` is the game as this browser predicts it right now. **Draw from the state every
@@ -219,17 +225,65 @@ change `state` in the view.
 
 ### Smooth motion
 
-The state only moves on once a tick, but screens draw 60 or 120 frames a second, so things drawn
-straight from it would move in steps. The engine takes care of that: every node, every copy in
-`mm.instances` and the camera glide to where you put them, over one tick. So set positions
-straight from the state, and motion is smooth on any screen, including other players' corrections.
-Don't smooth them yourself as well: that only adds lag.
+The state only moves on once a tick, but screens draw 60, 90, 120 or 144 frames a second, so
+things drawn straight from it would move in steps. The engine takes care of that: every node,
+every copy in `mm.instances` and the camera glide to where you put them. What moves with the
+state is drawn one tick behind the game's clock, part way between where you put it on the tick
+before and on the latest one, timed by the game's clock rather than the frames, so it moves at
+an even speed on any screen. Things you animate every frame from `view.time` (a bobbing coin, a
+camera you ease yourself) glide from where they are to each new place over one tick. So set
+positions straight from the state, and don't smooth them yourself as well: that only adds lag.
 
 - `snap: true` in a `.set()` (or an instance's `.at()`, or `mm.camera`) makes that one move a jump:
   for teleports, respawns, a coin that reappears somewhere else.
 - `smooth: false` on a node (or `mm.camera`) turns gliding off for it, for things you animate
-  exactly yourself (with `view.alpha`, say).
+  exactly yourself every frame (a camera you ease and shake, tumbling debris).
 - Things just made, shown again after being hidden, or moved to another parent always jump.
+
+### Smoothing corrections
+
+Your own moves show the moment you press, and everyone else's turn up a little later (as late as
+their connection and yours add up to, often a tenth of a second), so the prediction of other
+players gets corrected all the time. Mostly that's a tiny nudge. In games where players move fast
+and bump into each other, a late dash or a knock can move something a whole unit in one go, which
+looks like a jump. To ease those out, keep an offset for each thing that moves, add to it whatever
+a correction moved the thing by, and let it shrink back to nothing:
+
+```js
+const offsets = state.players.map(() => [0, 0]); // in setup: one [x, z] per player
+
+// in render, before drawing each player:
+if (view.correction) {
+  const was = view.correction.was.players[i];
+  const now = view.correction.now.players[i];
+  offsets[i][0] += was.x - now.x; // where it was drawn, minus where it is now
+  offsets[i][1] += was.z - now.z;
+}
+// ...then shrink it once per tick (view.tick moved on), and draw at state + offset:
+node.set({ pos: [p.x + offsets[i][0], 0, p.z + offsets[i][1]] });
+```
+
+Shrink the offsets as the ticks go by, not every frame (things that move with the state should
+only change once a tick, or they don't glide evenly), by something like `Math.exp(-12 * ticks /
+tickRate)`. Where things carry speed (balls, cars), ease the speed difference out too, with a
+spring, so a corrected ball carries on the way it was going and then settles: add `was.vx -
+now.vx` (and z) to a second offset for each player, `speeds[i]`, then each time the tick moves on:
+
+```js
+// A critically damped spring: off and vel ([x, z] each) settle back to nothing.
+function settle(off, vel, rate, seconds) {
+  const e = Math.exp(-rate * seconds);
+  for (let k = 0; k < off.length; k++) {
+    const c = vel[k] + rate * off[k];
+    off[k] = (off[k] + c * seconds) * e;
+    vel[k] = (vel[k] - rate * c * seconds) * e;
+  }
+}
+settle(offsets[i], speeds[i], 12, (view.tick - lastTick) / tickRate);
+```
+
+Effects shown from `view.events` (a bump's burst and sound) can arrive twice when a correction
+moves them a tick or changes them slightly: skip one that's the same as one shown a moment ago.
 
 ### Scene
 
@@ -240,7 +294,7 @@ frame are sent as one. `.remove()` removes a node and everything under it.
 mm.group({ pos, rot, scale, parent, visible })
 mm.mesh({ shape | geometry, color | material, pos, rot, scale, parent, visible, shadow })
 mm.avatar({ color, mode, speed, crown, shadow, pos, rot, scale, parent })   // the party critter
-mm.label({ text, style: 'tag' | 'float', tone: 'good' | 'great' | 'bad', color, pos, opacity, parent })
+mm.label({ text, style: 'tag' | 'me' | 'float', tone: 'good' | 'great' | 'bad', color, pos, opacity, parent })
 mm.instances({ shape | geometry, color | material, count, shadow, outline, pos, rot, scale, parent })
 ```
 
@@ -257,6 +311,9 @@ for the price of one node. Each copy shows once it's placed:
 - `color` on a copy tints it: start from a white `color` for copies in different colors.
 - `outline: false` leaves the cartoon outline off.
 - Copies can't be baked: keep them out of groups you `mm.bake`.
+
+Labels: `style: 'tag'` is a name tag in the player's `color`, `'me'` the same tag filled in with it
+(for "YOU" over your own critter), and `'float'` floating text in a `tone`.
 
 - `pos`, `rot` (radians, XYZ order) and `scale` (a number or `[x, y, z]`) are like
   three.js. y is up.
@@ -307,18 +364,24 @@ mm.bake(group)
 ### World, camera, effects, sound
 
 ```js
-mm.world({ sky: true, lights: { shadowSize }, clouds: { count, minRadius, maxRadius, minY, maxY }, background: '#hex', fog: ['#hex', near, far] })
+mm.world({ sky: true, lights: { shadowSize }, clouds: { count, minRadius, maxRadius, minY, maxY }, water: { y }, background: '#hex', fog: ['#hex', near, far] })
 mm.camera({ pos, look, fov, safe, snap, smooth })
 mm.burst({ pos, count, speed, up, life, size, gravity, colors })
+mm.ripple({ pos, size, life })
 mm.sound(name, ...numbers)
 ```
 
-- `mm.world`: each part can be added once.
+- `mm.world`: each part can be added once. `water` is a sea of gently rolling waves at height
+  `y`, out to the horizon: for arenas floating over water (Bumper Bash, Flag Frenzy).
 - `mm.camera`: `fov` is the vertical field of view in degrees. With `safe: true`, the picture is
   framed on the part of the screen the HUD leaves free (`view.screen.safe`): the camera looks at
   the middle of that area and `fov` spans its height, while the scene still shows behind the
   HUD. Fit things to `view.screen.safe.aspect` (see Coin Dash's view.js).
-- `mm.burst`: confetti-style particles.
+- `mm.burst`: confetti-style particles. One particle that just hangs and fades (a trail) is a
+  burst with `count: 1, speed: 0, up: 0, gravity: 0`.
+- `mm.ripple`: a white ring that spreads out over the water and fades (`size` 3.5 and `life` 1.2
+  by default): with a burst of white and pale blue and the `splash` sound for something falling
+  in.
 - `mm.sound` names: click, join, leave, ready, countdown, go, bump, dash, fall, jump,
   boing, pop, hop, miss, ouch, splat, wiggle, crash, creak, shatter, checkpoint, splash,
   warn, rumble, tick, bongo, thud, step, slice, collect, whistle, win, lose.
@@ -326,14 +389,22 @@ mm.sound(name, ...numbers)
 ### HUD
 
 ```js
-mm.hud.scores([...])                                     // per player: a number or short text (8 characters, emoji fine)
+mm.hud.scores([...])                                     // per player: a number or short text (8 characters, emoji fine); '' for just the name
 mm.hud.out([1, 3])                                       // grey out these players' chips (they're out)
-mm.hud.timer(secondsLeft)                                // or null to hide; ticks in the last 10 s
+mm.hud.timer(secondsLeft, { label, urgent, seconds })    // or null to hide; ticks in the last 10 s
+mm.hud.cooldown(ready)                                   // 0 (just used) to 1 (ready): how ready the a button is
 mm.hud.meter({ icon: '🥪', values: [0..1 per player], stops: ['#hex', ['#hex', 40], ...] })
 mm.hud.center('YOU WIN!', { style: 'count' | 'go' | 'bad' | 'big', ms })   // ms: 0 keeps it up
 mm.hud.banner('Text', { style: 'info' | 'warn', ms })
 mm.hud.textbox({ show, placeholder })                    // typing games: the text box; false hides it
 ```
+
+- `mm.hud.timer` options: `label` over the time (`'Time'` if left out, `'Last slice'` say),
+  `urgent`: how many seconds before the end it turns red and ticks (10), and `seconds: true` to
+  show plain seconds rather than minutes and seconds.
+- `mm.hud.cooldown`: for an a button that needs a moment to recharge (a dash). The touch button
+  fills up around its edge and turns yellow once it's ready; on a keyboard or gamepad a meter
+  labelled like the touch button (`touchLabel`) shows above the controls hint.
 
 The engine already shows the countdown and "GO!", the controls hint, "Spectating" for
 people who joined mid-game, the whistle at the end and the results screen.
@@ -365,7 +436,7 @@ Each browser keeps two copies of the state:
   present.
 
 When an input turns up for a moment that has already been predicted, the prediction is
-rebuilt from the confirmed copy. Because the rules are deterministic and the server and
+rebuilt from the confirmed copy (see Smoothing corrections for making that look smooth). Because the rules are deterministic and the server and
 browsers run the same QuickJS build, every copy agrees. Every couple of seconds each browser
 checks its confirmed state against the server's and fetches a fresh copy if they differ.
 That's a safety net, not something that should happen.

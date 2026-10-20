@@ -101,7 +101,19 @@
 
   const tickOf = (ms) => Math.floor((ms * E.rate) / 1000);
   const tickStartMs = (k) => Math.ceil((k * 1000) / E.rate);
-  const clone = (st) => ({ s: JSON.parse(JSON.stringify(st.s)), tick: st.tick, ended: st.ended });
+  // A copy of plain data: the same as a round trip through JSON, several times quicker.
+  function copy(v) {
+    if (v === null || typeof v !== 'object') return v;
+    if (Array.isArray(v)) {
+      const a = new Array(v.length);
+      for (let i = 0; i < v.length; i++) a[i] = copy(v[i]);
+      return a;
+    }
+    const o = {};
+    for (const k of Object.keys(v)) o[k] = copy(v[k]);
+    return o;
+  }
+  const clone = (st) => ({ s: copy(st.s), tick: st.tick, ended: st.ended });
 
   // Inputs within a tick go in time order; the server's order breaks ties.
   function order(x, y) {
@@ -227,7 +239,8 @@
     },
 
     // Browsers, once per frame. In: { now (game ms), wall (ms), log, fin, local, reset, hash, dt,
-    // screen }. Out: { c: drawing commands, k: confirmed tick, h: its hash if asked, ended }.
+    // screen }. Out: { c: drawing commands, p: the predicted tick they're drawn from, k: confirmed
+    // tick, h: its hash if asked, ended }.
     frame(json) {
       const a = JSON.parse(json);
       let rebuild = false;
@@ -273,12 +286,21 @@
       }
 
       // The prediction: from the confirmed state (if it needs rebuilding) up to the present.
+      let was = null; // the prediction being replaced
       if (rebuild || E.pred.tick < E.conf.tick) {
+        if (E.pred.tick >= E.conf.tick) was = E.pred;
         E.pred = clone(E.conf);
         E.rebuilds++;
       }
       const inputs = byTick(E.log.concat(E.pending.map(effective)));
       const predicted = [];
+      // The new prediction at the moment the old one had reached, to compare with it (see
+      // view.correction).
+      let correction = null;
+      if (was && !was.ended && was.tick <= tickOf(a.now)) {
+        advance(E.pred, was.tick, inputs, predicted, CATCH_UP);
+        if (E.pred.tick === was.tick && !E.pred.ended) correction = { was: was.s, now: copy(E.pred.s) };
+      }
       advance(E.pred, Math.max(0, tickOf(a.now)), inputs, predicted, CATCH_UP);
       // Inputs already made during the tick that's still going on show right away.
       let shown = E.pred;
@@ -303,12 +325,14 @@
       info.alpha = Math.max(0, Math.min(1, (a.now * E.rate) / 1000 - E.pred.tick));
       info.screen = a.screen;
       info.events = events;
+      info.correction = E.quiet ? null : correction;
       info.confirmed = E.quiet ? [] : confirmed.map((c) => JSON.parse(c[2]));
       info.ended = shown.ended;
       E.quiet = false;
       const commands = global.__mmView.render(shown.s, info);
       return JSON.stringify({
         c: commands,
+        p: E.pred.tick, // the tick the drawing is of
         k: E.conf.tick,
         h: a.hash && E.conf.tick === a.fin ? hashOf(E.conf) : undefined,
         ended: E.conf.ended,

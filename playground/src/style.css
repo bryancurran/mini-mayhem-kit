@@ -335,6 +335,19 @@ input:focus {
   box-shadow: 0 0 0 4px #ffcc3388;
 }
 
+/* Play now: into a public room. */
+.play-now {
+  font-size: 26px;
+}
+
+.play-hint {
+  margin: -8px 0 0;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
 .divider {
   display: flex;
   align-items: center;
@@ -558,44 +571,6 @@ input:focus {
   box-shadow: none;
 }
 
-.picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 6px 0 10px;
-}
-
-.pick {
-  border: 2.5px solid var(--line);
-  border-radius: 999px;
-  background: #f4effa;
-  padding: 2px 12px;
-  font-weight: 800;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.pick.selected {
-  background: var(--yellow);
-  box-shadow: 0 3px 0 var(--line);
-}
-
-.pick.played::after {
-  content: ' ✓';
-  color: var(--green);
-}
-
-.pick.spin {
-  background: var(--pink);
-  color: #fff;
-  box-shadow: 0 3px 0 var(--line);
-}
-
-.pick:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
 /* Official / User created tabs on the lobby's game card. */
 .game-tabs {
   display: flex;
@@ -607,15 +582,23 @@ input:focus {
 }
 
 .game-tab {
-  flex: 1;
+  flex: 1 1 auto;
   border: 0;
   border-radius: 10px;
   background: transparent;
   padding: 5px 8px;
   font-weight: 800;
   font-size: 15px;
+  white-space: nowrap;
   color: var(--ink-soft);
   cursor: pointer;
+}
+
+/* All, Official, User created: a little tighter to fit side by side. */
+.game-tab:first-child:nth-last-child(3),
+.game-tab:first-child:nth-last-child(3) ~ .game-tab {
+  padding: 5px 6px;
+  font-size: 14px;
 }
 
 .game-tab.selected {
@@ -635,14 +618,598 @@ input:focus {
   line-height: 18px;
 }
 
-.user-games {
+/* The lobby's games card takes the rest of the panel, and its list scrolls inside it. It never
+   gets smaller than its contents with the list at its smallest (the whole panel scrolls then). */
+.lobby .minigame-card {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.lobby .minigame-card .game-tabs {
+  margin-top: 0;
+}
+
+/* Your color, under the players. */
+.color-row {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 210px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 2.5px solid #e6dfef;
+}
+
+.color-label {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.color-row .swatches {
+  gap: 6px;
+}
+
+/* "Your color", and the way to the profile's shop. */
+.color-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dress-up {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.lobby-tools {
+  margin-bottom: 8px;
+}
+
+.lobby-tools .lib-search {
+  flex: 1 1 150px;
+  font-size: 16px;
+  padding: 6px 12px;
+}
+
+.lobby-tools .sort-btn {
+  padding: 3px 9px;
+  font-size: 13px;
+}
+
+.lobby .user-foot {
+  margin-bottom: 0;
+}
+
+.spin-btn {
+  width: 100%;
+  margin-bottom: 8px;
+  background: var(--pink);
+  color: #fff;
+}
+
+/* The host's star filter: games rated at least this show, and come up in votes. */
+.star-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.sf-label {
+  flex: none;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.min-stars {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  accent-color: var(--pink);
+  cursor: pointer;
+}
+
+.min-stars:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.sf-value {
+  flex: none;
+  min-width: 78px;
+  text-align: right;
+  color: var(--yellow-dark);
+}
+
+/* The vote on the next game, over the lobby: three games side by side, then the squares. */
+.vote-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 19; /* under toasts */
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: #2a184088;
+  animation: fade 0.25s both;
+}
+
+.vote-panel {
+  width: min(940px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.vote-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 16px;
+}
+
+.vote-head h2 {
+  margin: 0;
+  font-size: 34px;
+  color: #fff;
+  -webkit-text-stroke: 6px var(--line);
+  paint-order: stroke fill;
+  text-shadow: 0 3px 0 var(--line);
+  text-align: center;
+}
+
+.vote-timer {
+  padding: 2px 16px;
+  border-radius: 999px;
+  background: var(--line);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.vote-timer b {
+  display: inline-block;
+  min-width: 1.3em;
+  text-align: center;
+  font-size: 28px;
+  font-variant-numeric: tabular-nums;
+}
+
+.vote-timer.hurry b {
+  color: var(--yellow);
+}
+
+.picking .vote-timer,
+.picking .vote-cards {
+  display: none;
+}
+
+.vote-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  width: 100%;
+}
+
+.vote-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 16px 14px;
+  overflow: hidden;
+  border: 3px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  animation: pop 0.4s cubic-bezier(0.2, 1.4, 0.4, 1) backwards; /* (not after: it'd hold its transform) */
+  transition:
+    transform 0.12s,
+    box-shadow 0.12s;
+}
+
+.vote-card:nth-child(2) {
+  animation-delay: 0.08s;
+}
+
+.vote-card:nth-child(3) {
+  animation-delay: 0.16s;
+}
+
+.vote-card:hover:not(:disabled) {
+  transform: translateY(-3px);
+}
+
+.vote-card.mine {
+  outline: 5px solid var(--yellow);
+  outline-offset: 2px;
+  transform: translateY(-4px);
+}
+
+.vc-band {
+  align-self: stretch;
+  height: 54px;
+  margin: 0 -16px 4px;
+  border-bottom: 3px solid var(--line);
+  background:
+    radial-gradient(circle at 20% 40%, #ffffff55 0 10px, transparent 11px),
+    radial-gradient(circle at 75% 65%, #ffffff40 0 16px, transparent 17px),
+    var(--c);
+}
+
+.vc-name {
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.vc-tag {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink-soft);
+}
+
+.vc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.vc-meta .sep {
+  opacity: 0.5;
+}
+
+.vc-voters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 34px;
+  margin-top: 2px;
+}
+
+.voter {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--line);
+  border-radius: 50%;
+  background: var(--c);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 900;
+  -webkit-text-stroke: 3px var(--line);
+  paint-order: stroke fill;
+  animation: pop 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.voter.me {
+  box-shadow: 0 0 0 3px var(--yellow);
+}
+
+.vote-squares {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.vote-square {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 120px;
+  height: 96px;
+  padding: 8px;
+  border: 3px solid var(--line);
+  border-radius: 16px;
+  background: var(--c);
+  box-shadow: var(--shadow);
+  text-align: center;
+  animation: pop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) backwards;
+  transition:
+    transform 0.08s,
+    box-shadow 0.08s;
+}
+
+.vote-square b {
+  font-size: 16px;
+  line-height: 1.1;
+  color: #fff;
+  -webkit-text-stroke: 4px var(--line);
+  paint-order: stroke fill;
+}
+
+.vote-square .voter {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+}
+
+.vote-square.lit {
+  transform: scale(1.12);
+  box-shadow:
+    0 0 0 5px var(--yellow),
+    0 0 26px 8px #ffcc33aa;
+}
+
+.vote-square.won {
+  animation: won 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes won {
+  to {
+    transform: scale(1.2);
+  }
+}
+
+.vote-note {
+  margin: 0;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: var(--paper);
+  border: 3px solid var(--line);
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .vote-head h2 {
+    font-size: 26px;
+  }
+
+  .vote-cards {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .vote-card {
+    gap: 3px;
+    padding-bottom: 8px;
+  }
+
+  .vc-band {
+    height: 14px;
+    margin-bottom: 2px;
+  }
+
+  .vc-name {
+    font-size: 19px;
+  }
+
+  .vc-tag {
+    font-size: 13px;
+  }
+
+  .vc-voters {
+    min-height: 26px;
+  }
+
+  .vc-voters .voter {
+    width: 26px;
+    height: 26px;
+    font-size: 13px;
+  }
+
+  .vote-square {
+    width: 92px;
+    height: 76px;
+  }
+
+  .vote-square b {
+    font-size: 14px;
+  }
+}
+
+.game-list {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 110px;
   overflow-y: auto;
   margin-bottom: 8px;
   padding: 2px;
+}
+
+.game-list .user-game {
+  flex: none;
+}
+
+.user-game.previewing {
+  outline: 3px dashed var(--line);
+  outline-offset: 1px;
+}
+
+.played-tag {
+  flex: none;
+  color: var(--green);
+  font-weight: 900;
+}
+
+/* The next game (or the one someone's looking at) over the game world beside the panel. */
+.showcase {
+  position: fixed;
+  top: var(--showcase-top, 170px);
+  left: 20px;
+  width: clamp(300px, calc(100vw - 390px - 420px), 460px);
+  max-height: calc(100dvh - var(--showcase-top, 170px) - 76px); /* clear of the mute button */
+  overflow-y: auto;
+  padding: 18px 22px 0; /* (the Start bar at the bottom brings its own) */
+  background: #fffdf7f2;
+  border: 3px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  scrollbar-width: thin;
+}
+
+.showcase::before {
+  content: '';
+  display: block;
+  height: 8px;
+  margin: -18px -22px 14px;
+  background: var(--c, var(--yellow));
+  border-bottom: 3px solid var(--line);
+  border-radius: calc(var(--radius) - 3px) calc(var(--radius) - 3px) 0 0;
+}
+
+/* A public room's next game: its rules are up until this runs out, then it starts. */
+.sc-timer {
+  height: 12px;
+  margin: 0 0 10px;
+  overflow: hidden;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #ece5f4;
+}
+
+.sc-timer::after {
+  content: '';
+  display: block;
+  height: 100%;
+  background: var(--c, var(--yellow));
+  transform-origin: left;
+  animation: sc-drain var(--left) linear forwards;
+}
+
+@keyframes sc-drain {
+  from {
+    transform: scaleX(var(--from));
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.showcase.starting .eyebrow {
+  color: var(--ink);
+}
+
+.until {
+  font-variant-numeric: tabular-nums;
+}
+
+.showcase h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0 6px;
+  font-size: 32px;
+  line-height: 1.1;
+}
+
+.showcase h2 .ug-dot {
+  width: 20px;
+  height: 20px;
+}
+
+.showcase h3 {
+  margin: 14px 0 4px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.sc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.sc-meta .sep {
+  opacity: 0.5;
+}
+
+.sc-on {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.sc-tagline {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.showcase .rules {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.showcase .rules li + li {
+  margin-top: 4px;
+}
+
+.sc-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #f4effa;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.sc-controls p {
+  margin: 0;
+}
+
+/* On a wide screen Start sits under the game's details, stuck to the bottom of the card, and the
+   panel's copy is hidden (on a phone it's the other way round, see below). */
+.lobby .panel > .actions {
+  display: none;
+}
+
+.showcase .actions {
+  margin: 14px -22px 0;
+  border-width: 3px 0 0;
+  border-radius: 0 0 calc(var(--radius) - 3px) calc(var(--radius) - 3px);
+  box-shadow: none;
+}
+
+/* A full room's players scroll, so the games list keeps its room. */
+.lobby .player-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.sc-note {
+  margin: 12px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
 }
 
 .user-game {
@@ -724,12 +1291,6 @@ button.user-game {
   text-underline-offset: 3px;
 }
 
-.made-by {
-  margin: -6px 0 4px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--ink-soft);
-}
 
 /* Upload dialog: the server's checks, one step at a time. */
 .upload-overlay {
@@ -2372,7 +2933,6 @@ button.user-game {
 }
 
 .games-chip,
-.stats-chip,
 .account-chip {
   display: inline-flex;
   align-items: center;
@@ -2395,21 +2955,15 @@ button.user-game {
 }
 
 .games-chip:hover,
-.stats-chip:hover,
 .account-chip:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 0 var(--line);
 }
 
 .games-chip:active,
-.stats-chip:active,
 .account-chip:active {
   transform: translateY(2px);
   box-shadow: 0 1px 0 var(--line);
-}
-
-.chip-sign {
-  color: var(--blue);
 }
 
 .chip-sep {
@@ -2521,6 +3075,267 @@ button.user-game {
 
 .account-foot a {
   color: var(--ink-soft);
+}
+
+/* The profile: their critter trying things on, the shop, then their account. */
+.profile-card {
+  width: min(800px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.profile-title {
+  align-self: flex-start;
+  margin: 0;
+  font-size: 28px;
+}
+
+.profile-top {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  gap: 18px;
+  width: 100%;
+  text-align: left;
+}
+
+.critter-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.critter-preview {
+  width: 100%;
+  height: 310px;
+  border: 3px solid var(--line);
+  border-radius: 16px;
+  background: radial-gradient(circle at 50% 30%, #f2faff, #b9e0ff);
+  touch-action: none;
+  cursor: grab;
+}
+
+.critter-preview:active {
+  cursor: grabbing;
+}
+
+.profile-card .wallet-total {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 900;
+}
+
+.shop-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 10px;
+  margin-bottom: 8px;
+}
+
+.shop-head h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.shop-hint {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* The shop's groups (head, face, neck, body, back) flow side by side, a row of things in each. */
+.shop-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.shop-cat h4 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.shop-row {
+  display: flex;
+  gap: 6px;
+}
+
+.shop-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 86px;
+  padding: 8px 4px 7px;
+  border: 3px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 3px 0 var(--line);
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    transform 0.06s,
+    box-shadow 0.06s;
+}
+
+.shop-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 0 var(--line);
+}
+
+.shop-item:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--line);
+}
+
+.si-icon {
+  font-size: 30px;
+  line-height: 1.15;
+}
+
+.si-name {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.si-tag {
+  margin-top: 2px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #f4effa;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+
+.shop-item.pricey .si-tag {
+  opacity: 0.65;
+}
+
+.shop-item.owned .si-tag {
+  background: #e3f6dc;
+  color: var(--green);
+}
+
+.shop-item.worn {
+  background: #e9f9e3;
+}
+
+.shop-item.worn .si-tag {
+  background: var(--green);
+  color: #fff;
+}
+
+.shop-item.trying {
+  outline: 4px solid #ffcc33cc;
+  outline-offset: 1px;
+}
+
+.shop-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 58px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: #f4effa;
+}
+
+.shop-bar .shop-note {
+  font-size: 14px;
+}
+
+.sb-item {
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.sb-item b {
+  font-size: 16px;
+}
+
+.sb-item span {
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.sb-state {
+  font-weight: 800;
+  white-space: nowrap;
+  color: var(--green);
+}
+
+.shop-bar .btn {
+  flex: none;
+}
+
+.profile-account {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 2.5px solid #e6dfef;
+}
+
+@media (max-width: 640px) {
+  .profile-top {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .critter-box {
+    flex-direction: row;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .critter-preview {
+    width: 150px;
+    height: 190px;
+  }
+
+  .shop-cats {
+    gap: 10px 12px;
+  }
+
+  .shop-item {
+    width: 74px;
+    padding: 6px 2px;
+  }
+
+  .si-icon {
+    font-size: 26px;
+  }
+
+  .si-name {
+    font-size: 12px;
+  }
+
+  /* The item and its Buy button stay in view at the bottom while they scroll the shop. */
+  .shop-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    box-shadow: 0 -8px 10px #fffdf7;
+  }
 }
 
 .close-x {
@@ -3357,12 +4172,62 @@ body:has(.tap-controls) .race-top {
     border-top: none;
   }
 
-  .lobby .minigame-card .rules {
+  .lobby .minigame-card {
+    flex: none;
+  }
+
+  .game-list {
+    flex: none;
+    min-height: 0;
+    max-height: 40vh;
+  }
+
+  .lobby .panel > .actions {
+    display: flex;
+  }
+
+  .showcase .actions {
     display: none;
   }
 
-  .user-games {
-    max-height: 150px;
+  /* On a phone the details fill the strip of world between the room code and the panel. */
+  .showcase {
+    top: var(--world-top, 80px);
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-height: calc(100dvh - var(--world-top, 80px) - var(--world-bottom, 50vh));
+    padding: 12px 14px;
+  }
+
+  /* There's only room for the wheel while it spins (the bar at the bottom says so). */
+  .showcase.spinning {
+    display: none;
+  }
+
+  .showcase > :last-child {
+    margin-bottom: 0;
+  }
+
+  .showcase::before {
+    margin: -12px -14px 10px;
+    height: 6px;
+  }
+
+  .showcase h2 {
+    font-size: 24px;
+  }
+
+  .sc-tagline {
+    font-size: 16px;
+  }
+
+  .showcase .rules {
+    font-size: 14px;
+  }
+
+  .showcase h3 {
+    margin-top: 10px;
   }
 
   .actions {
@@ -3607,9 +4472,16 @@ body:has(.tap-controls) .race-top {
     font-size: 17px;
   }
 
+  /* In the lobby, beside the room code (the game's details take the space below it). */
   body:has(.lobby) #mute {
     bottom: auto;
-    top: 76px;
+    left: auto;
+    right: 12px;
+    top: calc(max(12px, env(safe-area-inset-top)) + 9px);
+  }
+
+  body:has(.lobby) .room-badge {
+    right: 60px;
   }
 
   body:has(.home) #mute {
