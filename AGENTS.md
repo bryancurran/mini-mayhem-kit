@@ -5,7 +5,8 @@ in the browser: someone opens a room, up to 8 people join from phones, laptops o
 they play a series of short minigames. This kit is for making new minigames and uploading them
 to the game's library, where anyone can play them.
 
-Read this whole file, then `docs/making-games.md` (the full API), before writing any code.
+Read this whole file, then `docs/making-games.md` (the full API) and `docs/style-guide.md` (how
+the official games look, move and sound, with the numbers to use), before writing any code.
 
 ## How this repository is meant to be used (read this first)
 
@@ -188,17 +189,15 @@ of the rest.
   `view.screen.portrait`), and nothing important behind the score chips at the top.
 - Players should see each other and get in each other's way: that's where the fun is.
 - Give people a way to catch up, and a dramatic finish.
-- Use the house style:
-  - the critter avatars (`mm.avatar`) in each player's color;
-  - cartoon colors (`color: '#hex'` gives the outlined cartoon material);
-  - `mm.world({ sky: true, lights: {...} })`;
-  - sounds from the list in the docs.
+- Follow the style guide (`docs/style-guide.md`): the world and light, the palette, the critters
+  and their modes, the camera, motion, feedback, sounds, the HUD, timing, and how to name the game
+  and write its rules. It has the numbers the official games use.
 
 ### Polish: what makes it feel like an official game
 
-A game that passes the check works; these make it feel good. Go through them before you call a
-game done, and look at it (`npm run shot`, on a phone too, and `npm run play`) rather than
-assuming. Compare it with `examples/`.
+A game that passes the check works; these make it feel good (the style guide has the details).
+Go through them before you call a game done, and look at it (`npm run shot`, on a phone too,
+and `npm run play`) rather than assuming. Compare it with `examples/`.
 
 - **Motion:** `tickRate` 60 for anything fast (running, driving, bumping, jumping), 30 for
   slower games. Positions straight from the state (the engine glides them), `snap: true` for
@@ -251,6 +250,7 @@ It doesn't judge quality: simple games are welcome.
 ```
 AGENTS.md                this file
 docs/making-games.md     the full API: manifest, rules, view, the mm kit, netcode, limits
+docs/style-guide.md      the house style: look, palette, critters, camera, motion, feedback, words
 examples/coin-dash/      the starter game (small, avatars, a stick, instances)
 examples/sandwich-stack/ a full game (custom geometry, textures, baking, events)
 examples/word-rush/      a typing game (the text box, live typing, bot())

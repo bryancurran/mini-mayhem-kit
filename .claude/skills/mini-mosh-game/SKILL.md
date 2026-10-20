@@ -9,8 +9,9 @@ description: Make, change, test and upload Mini Mosh party minigames (.mm packag
    rules and these instructions) from GitHub and installs it. If there's no `update` script,
    the kit is very old: run `git checkout package-lock.json`, then `git pull`, then
    `npm install`. Uploads need the latest kit.
-2. Read `AGENTS.md` (the workflow and the rules that matter) and `docs/making-games.md` (the
-   whole API) before writing any code, and again after an update. Skim `examples/coin-dash/`
+2. Read `AGENTS.md` (the workflow and the rules that matter), `docs/making-games.md` (the
+   whole API) and `docs/style-guide.md` (the house style, with numbers) before writing any
+   code, and again after an update. Make the game look, move and sound like the guide says. Skim `examples/coin-dash/`
    (small), `examples/sandwich-stack/` (a full game) and `examples/word-rush/` (typing).
 3. Start from the template: `npm run new <id> -- --name "Game Name"`, then edit
    `games/<id>/manifest.json` (including `players`, how many it takes), `rules.js` and `view.js`. To change a game that's already in the

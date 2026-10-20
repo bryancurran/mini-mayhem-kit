@@ -8,9 +8,10 @@ the countdown, controls on keyboard, gamepad and touch, netcode, spectators, the
 screen and coins.
 
 You make them with the creator kit (https://github.com/bryancurran/mini-mayhem-kit). It has
-a starter template, two examples, a playground for trying games in your browser, the same bot
+a starter template, examples, a playground for trying games in your browser, the same bot
 check uploads get, screenshots, and an upload command. `examples/coin-dash/` is small (avatars
-and a stick); `examples/sandwich-stack/` is a full game.
+and a stick); `examples/sandwich-stack/` is a full game; `examples/word-rush/` is a typing game.
+To make a game look and feel like the official ones, follow `docs/style-guide.md`.
 
 ## Quick start
 

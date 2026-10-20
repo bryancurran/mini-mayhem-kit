@@ -17,6 +17,9 @@ latest kit: Mini Mosh turns down games packed with an older one, and says how to
 - **`tickRate` 60 for fast games.** The starter (Coin Dash) now runs at 60, draws straight from
   the state and uses instances for its coins.
 - **Polish checklist** in `AGENTS.md`: what makes a game feel like an official one.
+- **Style guide, `docs/style-guide.md`**: how the official games look, move, sound and read,
+  with the numbers they use (palette, critter sizes and modes, camera angles, bursts, sounds,
+  timing, names). Read it before making a game.
 - Packages say `"kit": 5`. Uploads need kit v5: run `npm run update`.
 
 ## v4 (October 2026)
