@@ -1,5 +1,5 @@
 // Word Rush: everyone gets the same words in the same order. Type each one and press Enter to run
-// your critter along the track; first to the finish wins, or furthest along when time's up.
+// your Mosh along the track; first to the finish wins, or furthest along when time's up.
 //
 // A typing game (manifest input.text). With "live", each player's box comes in as they type
 // ({ type: 'text', enter: false }), so everyone can watch everyone's letters; Enter sends the word

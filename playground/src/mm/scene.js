@@ -514,7 +514,7 @@ export class SceneHost {
       if (p.color !== undefined && color(p.color, '#ff5c8a') !== n.color) {
         n.color = color(p.color, '#ff5c8a');
         n.avatar.setColor(n.color);
-        n.avatar.setOutfit(outfitFor(n.color)); // a player's critter wears their outfit
+        n.avatar.setOutfit(outfitFor(n.color)); // a player's Mosh wears their outfit
       }
       if (p.mode !== undefined && AVATAR_MODES.has(p.mode)) n.mode = p.mode;
       if (p.speed !== undefined) n.speed = num(p.speed, 0, 50, 0);

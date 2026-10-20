@@ -293,7 +293,7 @@ frame are sent as one. `.remove()` removes a node and everything under it.
 ```js
 mm.group({ pos, rot, scale, parent, visible })
 mm.mesh({ shape | geometry, color | material, pos, rot, scale, parent, visible, shadow })
-mm.avatar({ color, mode, speed, crown, shadow, pos, rot, scale, parent })   // the party critter
+mm.avatar({ color, mode, speed, crown, shadow, pos, rot, scale, parent })   // a Mosh, the players' character
 mm.label({ text, style: 'tag' | 'me' | 'float', tone: 'good' | 'great' | 'bad', color, pos, opacity, parent })
 mm.instances({ shape | geometry, color | material, count, shadow, outline, pos, rot, scale, parent })
 ```
@@ -313,7 +313,7 @@ for the price of one node. Each copy shows once it's placed:
 - Copies can't be baked: keep them out of groups you `mm.bake`.
 
 Labels: `style: 'tag'` is a name tag in the player's `color`, `'me'` the same tag filled in with it
-(for "YOU" over your own critter), and `'float'` floating text in a `tone`.
+(for "YOU" over your own Mosh), and `'float'` floating text in a `tone`.
 
 - `pos`, `rot` (radians, XYZ order) and `scale` (a number or `[x, y, z]`) are like
   three.js. y is up.

@@ -57,7 +57,7 @@ button,
 }
 
 /* While a round is on (main.js), nothing on the page can be selected or long-pressed into a menu,
-   whatever drew it (the HUD, name tags over the critters, a player-made game's buttons). Text
+   whatever drew it (the HUD, name tags over the Moshes, a player-made game's buttons). Text
    boxes still work: a typing game's, and the notes on the results. */
 body.playing,
 body.playing * {
@@ -2200,7 +2200,7 @@ button.user-game {
   }
 }
 
-/* ---- Critter Count HUD ------------------------------------------------------ */
+/* ---- Mosh Count HUD ------------------------------------------------------ */
 
 .chip-score {
   min-width: 18px;
@@ -3077,7 +3077,7 @@ button.user-game {
   color: var(--ink-soft);
 }
 
-/* The profile: their critter trying things on, the shop, then their account. */
+/* The profile: their Mosh trying things on, the shop, then their account. */
 .profile-card {
   width: min(800px, 100%);
   max-height: calc(100dvh - 32px);
@@ -3099,14 +3099,14 @@ button.user-game {
   text-align: left;
 }
 
-.critter-box {
+.mosh-box {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
 }
 
-.critter-preview {
+.mosh-preview {
   width: 100%;
   height: 310px;
   border: 3px solid var(--line);
@@ -3116,7 +3116,7 @@ button.user-game {
   cursor: grab;
 }
 
-.critter-preview:active {
+.mosh-preview:active {
   cursor: grabbing;
 }
 
@@ -3167,15 +3167,19 @@ button.user-game {
   gap: 6px;
 }
 
+/* Every card is the same size: the icon in a box of its own, two lines for the name (centered when
+   it fits on one), and a bar along the bottom with the price, or Owned, or Wearing. */
 .shop-item {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: 44px 32px 26px;
+  justify-items: stretch;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   width: 86px;
-  padding: 8px 4px 7px;
+  padding: 6px 0 0;
   border: 3px solid var(--line);
   border-radius: 14px;
+  overflow: hidden;
   background: #fff;
   box-shadow: 0 3px 0 var(--line);
   font: inherit;
@@ -3197,21 +3201,32 @@ button.user-game {
 }
 
 .si-icon {
-  font-size: 30px;
-  line-height: 1.15;
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-size: 32px;
+  line-height: 1;
 }
 
 .si-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 4px;
+  overflow: hidden;
   font-size: 13px;
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1.15;
   text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .si-tag {
-  margin-top: 2px;
-  padding: 1px 8px;
-  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  height: 100%;
+  border-top: 2.5px solid var(--line);
   background: #f4effa;
   font-size: 12px;
   font-weight: 800;
@@ -3220,7 +3235,7 @@ button.user-game {
 }
 
 .shop-item.pricey .si-tag {
-  opacity: 0.65;
+  color: #a59cb5;
 }
 
 .shop-item.owned .si-tag {
@@ -3301,13 +3316,13 @@ button.user-game {
     gap: 10px;
   }
 
-  .critter-box {
+  .mosh-box {
     flex-direction: row;
     justify-content: center;
     gap: 12px;
   }
 
-  .critter-preview {
+  .mosh-preview {
     width: 150px;
     height: 190px;
   }
@@ -3317,8 +3332,9 @@ button.user-game {
   }
 
   .shop-item {
+    grid-template-rows: 36px 30px 24px;
     width: 74px;
-    padding: 6px 2px;
+    padding-top: 5px;
   }
 
   .si-icon {

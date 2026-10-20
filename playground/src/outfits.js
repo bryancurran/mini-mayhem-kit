@@ -3,10 +3,10 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { COSMETICS } from '../../shared/cosmetics.js';
 import { noOutline, toon } from './gfx.js';
 
-// The cosmetics players buy (shared/cosmetics.js), drawn on their critter. Each is built once in
-// the critter's torso space (avatar.js: the body is a sphere around BODY_Y, the eyes are at
+// The cosmetics players buy (shared/cosmetics.js), drawn on their Mosh. Each is built once in
+// the Mosh's torso space (avatar.js: the body is a sphere around BODY_Y, the eyes are at
 // y 0.76, the cheeks at 0.57, the antenna rises from the top of the head at 1.12), and copied
-// onto every critter wearing it. Parts that don't move are merged into one mesh per color, so a
+// onto every Mosh wearing it. Parts that don't move are merged into one mesh per color, so a
 // full outfit stays a handful of draw calls.
 //
 // Shoes (feet: true) go on each foot instead, built for one side at a time (side -1 is the left),
@@ -191,7 +191,7 @@ const ITEMS = {
       const red = mat('#ff4d5e');
       const blue = mat('#3d8bff');
       const p = new Parts(g);
-      // The ribbon, red on one side and blue on the other, round the critter's front.
+      // The ribbon, red on one side and blue on the other, round the Mosh's front.
       p.bar([-0.04, 0.4, 0.61], [-0.34, 0.49, 0.5], 0.1, red, 0.02);
       p.bar([0.04, 0.4, 0.61], [0.34, 0.49, 0.5], 0.1, blue, 0.02);
       p.add(new THREE.CylinderGeometry(0.16, 0.16, 0.045, 32).rotateX(Math.PI / 2), gold, { at: [0, 0.27, 0.6], rot: [0.32, 0, 0] });
@@ -256,7 +256,7 @@ const ITEMS = {
           scale: [FOOT.x * around + 0.012, FOOT.y * around + 0.015, 0.25], // (z: the strap's width)
         });
       }
-      // A flower on the toe (the top of the foot is under the critter), facing forward and up.
+      // A flower on the toe (the top of the foot is under the Mosh), facing forward and up.
       const at = new THREE.Vector3(side * 0.035, 0.075, 0.235);
       const tilt = new THREE.Euler(-1.1, 0, 0);
       for (let i = 0; i < 5; i++) {
@@ -277,7 +277,7 @@ const ITEMS = {
       const welt = mat('#a07850');
       const silver = mat('#dfe3ee', { emissive: new THREE.Color('#2a2d38') });
       const p = new Parts(g);
-      // Leather over the whole foot, and a ring round the top where it meets the critter.
+      // Leather over the whole foot, and a ring round the top where it meets the Mosh.
       p.add(new THREE.SphereGeometry(1, 24, 14), leather, { at: [0, 0.008, 0.008], scale: [FOOT.x + 0.018, FOOT.y + 0.02, FOOT.z + 0.022] });
       p.add(new THREE.TorusGeometry(1, 0.2, 8, 28).rotateX(Math.PI / 2), leather, { at: [0, 0.075, -0.02], scale: [0.16, 0.12, 0.21] });
       // A chunky sole with a heel.
@@ -382,7 +382,7 @@ const ITEMS = {
 // Every item in shared/cosmetics.js has a look here.
 for (const id of Object.keys(COSMETICS)) if (!ITEMS[id]) throw new Error(`no look for cosmetic "${id}"`);
 
-const templates = new Map(); // id (and side, for shoes) -> the built group, copied for each critter
+const templates = new Map(); // id (and side, for shoes) -> the built group, copied for each Mosh
 
 function copy(key, build) {
   let template = templates.get(key);
@@ -402,7 +402,7 @@ const shoe = (item, side) => (g) => {
   g.add(inner);
 };
 
-// A new copy of the item for one critter: { obj (on its torso) or feet ([left, right]), slot, lift,
+// A new copy of the item for one Mosh: { obj (on its torso) or feet ([left, right]), slot, lift,
 // crowned, animate }.
 export function makeItem(id) {
   const item = ITEMS[id];

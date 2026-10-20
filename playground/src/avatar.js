@@ -3,7 +3,8 @@ import { cleanOutfit } from '../../shared/cosmetics.js';
 import { toon } from './gfx.js';
 import { makeItem } from './outfits.js';
 
-// A chubby little party critter. Origin is at its feet; it faces +z. About 1.7 units tall.
+// A Mosh, the chubby little party character everyone plays as. Origin is at its feet; it faces +z.
+// About 1.7 units tall.
 
 const CROWN_POINTS = 5;
 const CROWN_RADIUS = 0.3;
@@ -55,7 +56,7 @@ const shared = {
 // Shared resources outlive any single scene; disposeScene() skips them.
 for (const r of [...Object.values(geo), ...Object.values(shared)]) r.userData.shared = true;
 
-// What each player in the room wears, by their color (unique in a room), so every game's critters
+// What each player in the room wears, by their color (unique in a room), so every game's Moshes
 // wear it without the games knowing about outfits. main.js keeps it up to date.
 const roomOutfits = new Map(); // color -> outfit
 

@@ -1,6 +1,6 @@
-// Things players buy with their coins to dress up their critter. Bought once, kept for good on
+// Things players buy with their coins to dress up their Mosh. Bought once, kept for good on
 // their account (server/accounts.js), worn in the lobby and in every game (client/src/avatar.js
-// draws them). A critter wears at most one thing in each slot, and nothing ever hides its antenna.
+// draws them). A Mosh wears at most one thing in each slot, and nothing ever hides its antenna.
 
 export const SLOTS = ['head', 'face', 'neck', 'body', 'back', 'feet'];
 // What the profile's shop calls each group (one thing from each can be worn at once).

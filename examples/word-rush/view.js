@@ -1,5 +1,5 @@
-// Word Rush's look: a lane each on a grassy track, a critter in each lane running to the finish
-// line, and over each critter the word it's on, with the letters typed so far in capitals. Your
+// Word Rush's look: a lane each on a grassy track, a Mosh in each lane running to the finish
+// line, and over each Mosh the word it's on, with the letters typed so far in capitals. Your
 // word is in the text box too, until you start typing.
 
 const LANE = 1.7; // lane width
@@ -9,7 +9,7 @@ const laneX = (i, n) => (i - (n - 1) / 2) * LANE;
 
 let me = -1;
 let players = [];
-let critters = [];
+let moshes = [];
 let decided = false;
 let typing = null; // what the text box asks for, as last set
 
@@ -41,7 +41,7 @@ defineView({
     });
     mm.mesh({ shape: ['box', width, 0.04, 1], material: mm.material({ texture: checks }), pos: [0, 0.03, -LENGTH] });
 
-    critters = players.map((p, i) => ({
+    moshes = players.map((p, i) => ({
       node: mm.avatar({ color: p.color, scale: 0.75, shadow: true, rot: [0, Math.PI, 0] }),
       label: mm.label({ text: '', color: p.color, style: 'tag' }),
       x: laneX(i, n),
@@ -53,7 +53,7 @@ defineView({
     const dt = view.dt;
     const n = players.length;
     for (const ev of view.events) {
-      const c = critters[ev.player];
+      const c = moshes[ev.player];
       if (ev.type === 'word') {
         mm.burst({ pos: [c.x, 0.8, c.z], count: 10, speed: 3, up: 3, life: 0.4, size: 0.1, gravity: 8, colors: [players[ev.player].color, '#ffffff'] });
         if (ev.player === me) mm.sound('collect');
@@ -74,7 +74,7 @@ defineView({
     }
 
     state.players.forEach((p, i) => {
-      const c = critters[i];
+      const c = moshes[i];
       const z = (-LENGTH * p.at) / GOAL;
       c.z = damp(c.z, z, 6, dt);
       const running = c.z - z > 0.05;

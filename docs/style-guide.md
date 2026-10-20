@@ -7,7 +7,7 @@ game made with the creator kit fits in next to them. `docs/making-games.md` has 
 ## The look in one breath
 
 Bright, chunky, cartoon. Rounded shapes with dark outlines and two-tone toon shading, floating in
-a blue sky with soft clouds. The players are the party critters in their own colors, big enough to
+a blue sky with soft clouds. The players are Moshes in their own colors, big enough to
 see on a phone held upright. Everything moves smoothly and answers every press with a sound and a
 little burst.
 
@@ -43,7 +43,7 @@ pure black, no flat greys.
 | Dark details (eyes, text, bolts) | `#2a1840` |
 | Confetti | `#ff4d5e`, `#ffc83d`, `#3ccf4e`, `#3d8bff`, `#a65bff`, `#ff6fcf` |
 
-- Player colors belong to players: a player's critter, their score chip, their trail, the things
+- Player colors belong to players: a player's Mosh, their score chip, their trail, the things
   they own. Don't paint scenery or hazards in them.
 - Hazards read as hazards: a warm red or orange that flashes, never a player's exact color.
 
@@ -51,12 +51,12 @@ pure black, no flat greys.
 
 - Chunky and rounded: spheres, capsules, cylinders and cones; boxes look best thick and stubby.
   Squash a sphere with `scale` for blobs, pillows and buns.
-- Units: a critter is about 1.4 tall at `scale: 0.8`. Arenas are about 8 to 14 across their
+- Units: a Mosh is about 1.4 tall at `scale: 0.8`. Arenas are about 8 to 14 across their
   radius. Anything a player must notice is at least 0.4 across.
 - Make lots of the same thing (coins, crowds, pellets, debris) with `mm.instances`, not hundreds
   of nodes.
 
-## The critters
+## The Moshes
 
 - Every player is an `mm.avatar` in their own color, at `scale` 0.72 to 0.82.
 - They face where they're going (`rot: [0, face, 0]`) and their `mode` follows what they're doing:
@@ -76,7 +76,7 @@ pure black, no flat greys.
 
 - The leader wears the crown (`crown: true`).
 - Other players get a name tag (`mm.label({ text: name, color, style: 'tag' })`) above their
-  heads; your own critter gets a white ring under its feet instead, so you can always find it.
+  heads; your own Mosh gets a white ring under its feet instead, so you can always find it.
 
 ## Camera
 
@@ -179,8 +179,10 @@ mm.burst({ pos, count: 40, speed: 7, up: 9, life: 1.6, size: 0.16, gravity: 12, 
 
 ## Names and words
 
+- The players' characters are Moshes (one Mosh, two Moshes): "your Mosh", "the last Mosh
+  standing". Call them that in the name, tagline, rules and everything on screen.
 - Name: two words, usually alliterative and punchy: Bumper Bash, Sky Sprint, Beanstalk Blitz,
-  Flag Frenzy, Topple Town, Critter Count, Conga Clash, Sandwich Stack, Tightrope Tumble.
+  Flag Frenzy, Topple Town, Mosh Count, Conga Clash, Sandwich Stack, Tightrope Tumble.
 - Tagline: one line saying what to do and how to win, ending with energy: "Knock everyone off the
   platform. Last one standing wins!", "Build the tallest sandwich. Timing is everything!"
 - Rules: 3 or 4 lines, talking to the player ("you"), one idea each: what happens, what you do,
@@ -201,7 +203,7 @@ Look at it (`npm run shot`, on a phone too, and `npm run play`) and check:
 
 - [ ] It ticks at 60 if it's fast, draws positions straight from the state, and snaps teleports.
 - [ ] The world has a sky, a platform with depth, some scenery, and shadows.
-- [ ] Every player is a critter in their color, with the right mode for what they're doing.
+- [ ] Every player is a Mosh in their color, with the right mode for what they're doing.
 - [ ] The camera frames everything on a phone held upright and eases rather than jumps.
 - [ ] Every action has a sound and a burst; big moments have more (shake, confetti, a label).
 - [ ] The HUD shows the scores (and the time), with nothing important under it.

@@ -189,7 +189,7 @@ of the rest.
   `view.screen.portrait`), and nothing important behind the score chips at the top.
 - Players should see each other and get in each other's way: that's where the fun is.
 - Give people a way to catch up, and a dramatic finish.
-- Follow the style guide (`docs/style-guide.md`): the world and light, the palette, the critters
+- Follow the style guide (`docs/style-guide.md`): the world and light, the palette, the Moshes
   and their modes, the camera, motion, feedback, sounds, the HUD, timing, and how to name the game
   and write its rules. It has the numbers the official games use.
 
@@ -252,7 +252,7 @@ It doesn't judge quality: simple games are welcome.
 ```
 AGENTS.md                this file
 docs/making-games.md     the full API: manifest, rules, view, the mm kit, netcode, limits
-docs/style-guide.md      the house style: look, palette, critters, camera, motion, feedback, words
+docs/style-guide.md      the house style: look, palette, Moshes, camera, motion, feedback, words
 examples/coin-dash/      the starter game (small, avatars, a stick, instances)
 examples/sandwich-stack/ a full game (custom geometry, textures, baking, events)
 examples/word-rush/      a typing game (the text box, live typing, bot())

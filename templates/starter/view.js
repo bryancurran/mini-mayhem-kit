@@ -1,11 +1,11 @@
-// Coin Dash's look: a round grassy arena in the sky, a critter for each player, spinning coins.
+// Coin Dash's look: a round grassy arena in the sky, a Mosh for each player, spinning coins.
 // Everything is drawn straight from the state each frame. The engine glides every node (and the
 // camera) to where it's put, over one tick, so motion is smooth on any screen and corrections
 // that arrive over the network don't make anyone jump. (snap: true makes a move a jump.)
 
 let me = -1;
 let players = [];
-let critters = [];
+let moshes = [];
 let coins = null;
 let coinSpots = []; // where each coin was last frame
 let ring = null;
@@ -20,11 +20,11 @@ defineView({
     mm.mesh({ shape: ['cylinder', ARENA - 0.6, 1.2, 3, 32], color: '#9a6a44', pos: [0, -2.9, 0] });
     mm.mesh({ shape: ['torus', ARENA + 0.35, 0.16, 8, 64], rot: [Math.PI / 2, 0, 0], color: '#ffffff', pos: [0, 0.02, 0] });
 
-    critters = players.map((p) => ({
+    moshes = players.map((p) => ({
       node: mm.avatar({ color: p.color, scale: 0.8, shadow: true }),
       label: p.index === me ? null : mm.label({ text: p.name, color: p.color, style: 'tag' }),
     }));
-    // A ring under your own critter, so you can always find yourself.
+    // A ring under your own Mosh, so you can always find yourself.
     if (me >= 0) ring = mm.mesh({ shape: ['ring', 0.6, 0.85, 32], rot: [-Math.PI / 2, 0, 0], material: mm.material({ color: '#ffffff', unlit: true, outline: false }) });
     // Every coin is a copy of one shape, drawn in one go (instances suit crowds, coins, debris).
     coins = mm.instances({ shape: ['cylinder', 0.42, 0.42, 0.12, 24], color: '#ffd23d', count: COINS, shadow: 'cast' });
@@ -50,7 +50,7 @@ defineView({
     }
 
     state.players.forEach((p, i) => {
-      const c = critters[i];
+      const c = moshes[i];
       const moving = Math.hypot(p.sx, p.sz) > 0.05;
       const won = state.phase === 'done' && state.winners.includes(i);
       c.node.set({
