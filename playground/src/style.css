@@ -4482,11 +4482,6 @@ body:has(.tap-controls) .race-top {
     padding: 12px 14px;
   }
 
-  /* There's only room for the wheel while it spins (the bar at the bottom says so). */
-  .showcase.spinning {
-    display: none;
-  }
-
   .showcase > :last-child {
     margin-bottom: 0;
   }

@@ -51,7 +51,7 @@ to the game's library (see Uploading).
 ```
 
 - `id`: lowercase letters, digits and dashes.
-- `color`: the game's segments on the spin wheel.
+- `color`: the game's color in the lobby's list and on its card when players vote.
 - `tickRate`: rule steps per second, 10-60. Use 60 for anything fast (running, driving, flying,
   bumping, aiming a jump), which also makes presses land sooner; 30 for slower games; less only
   for games played a move at a time. It costs server time (see Limits), so keep `step` lean.
@@ -721,9 +721,9 @@ Each account can have up to 100 games in the library (updates don't count): dele
 make room for another.
 
 Accepted games are playable right away. Everyone in a lobby sees them under All games, and
-the host can pick them like any other game. They don't appear on the spin wheel. Anyone can also
-find them from the home screen: **Games** lists every game with its rules, and **Play it** makes
-a room with that game up first.
+the host can pick them like any other game (public rooms play only standard games). Anyone can
+also find them from the home screen: **Games** lists every game with its rules, and **Play it**
+makes a room with that game up first.
 
 Uploads need the latest creator kit. Every package says which kit version packed it, and one
 from an older kit is turned down with a message saying to run `npm run update`. The kit's own
