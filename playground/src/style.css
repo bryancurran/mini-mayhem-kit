@@ -538,6 +538,45 @@ input:focus {
   background: #ddd;
 }
 
+/* Bots (the host adds them): no stats to open, and the host's ✕ takes one out. */
+.player.bot {
+  cursor: default;
+}
+
+.player.bot:hover {
+  background: #f4effa;
+  box-shadow: none;
+}
+
+.state.bot {
+  background: #dff1ff;
+}
+
+.bot-kick {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin-right: -4px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.bot-kick:hover,
+.bot-kick:focus-visible {
+  background: #ffd9de;
+  color: var(--ink);
+  outline: none;
+}
+
+.add-bot {
+  margin-top: 8px;
+}
+
 .swatches {
   display: grid;
   grid-template-columns: repeat(8, 1fr);

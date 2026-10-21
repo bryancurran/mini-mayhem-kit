@@ -1,3 +1,4 @@
+import { Bots } from './bots.js';
 import { MM, checkAction, tickOf, tickStartMs } from './format.js';
 import { Sandbox } from './sandbox.js';
 
@@ -8,9 +9,11 @@ import { Sandbox } from './sandbox.js';
 //   - a tick is final MM.netDelay ms after it happens, and an input that arrives later moves to
 //     the first tick that isn't final;
 //   - every couple of seconds it sends a hash of its state so clients can check they agree;
-//   - a game that crashes, throws, or uses too much time ends with everyone tied for last.
+//   - a game that crashes, throws, or uses too much time ends with everyone tied for last;
+//   - bots play by the game's bot() (see shared/mm/bots.js), as a room's bots do.
 //
-// localGame(pkg, { QuickJS, ENGINE, clock, log, seed }) returns a class: new Game(playerIds), then
+// localGame(pkg, { QuickJS, ENGINE, clock, log, seed }) returns a class: new Game(playerIds,
+// { bots: [the ids among them the "server" plays for] }), then
 // handleInput(playerId, msg), step(), snapshot(), wantsSnapshot(), isFinished(), getResults(),
 // getInit() (what a browser needs to start), and `box` (the sandbox) and `crashed`.
 
@@ -39,7 +42,7 @@ export function localGame(pkg, { QuickJS, ENGINE, clock = performance, log = con
     static tickRate = rate;
     static sendRate = MM.sendRate;
 
-    constructor(playerIds) {
+    constructor(playerIds, { bots = [] } = {}) {
       this.ids = playerIds;
       this.seed = Number.isInteger(seed) ? seed : Math.floor(Math.random() * 2 ** 31);
       this.goAt = clock.now() + m.countdown * 1000;
@@ -63,6 +66,13 @@ export function localGame(pkg, { QuickJS, ENGINE, clock = performance, log = con
         this.box.call('init', JSON.stringify({ seed: this.seed, rate, me: -1, players: playerIds.map((id, index) => ({ index, id })) }), MM.deadline.setup);
       } catch (e) {
         this.crash(e);
+      }
+      this.bots = null;
+      const botIndexes = playerIds.map((id, i) => (bots.includes(id) ? i : -1)).filter((i) => i >= 0);
+      if (botIndexes.length && !this.over) {
+        const resume = () => ({ state: this.box.call('state', '', MM.deadline.tick), log: this.log.filter((e) => !this.toSim.includes(e)).map(encode) });
+        this.bots = new Bots({ QuickJS, ENGINE, pkg, seed: this.seed, players: playerIds.map((id, index) => ({ index, id })), bots: botIndexes, resume, log, label });
+        this.botC = playerIds.map(() => 0);
       }
     }
 
@@ -114,7 +124,8 @@ export function localGame(pkg, { QuickJS, ENGINE, clock = performance, log = con
         const wantHash = target >= this.hashAt;
         try {
           const started = performance.now();
-          const r = JSON.parse(this.box.call('advance', JSON.stringify({ to: target, log: this.toSim.map(encode), hash: wantHash }), MM.deadline.tick));
+          const json = JSON.stringify({ to: target, log: this.toSim.map(encode), hash: wantHash });
+          const r = JSON.parse(this.box.call('advance', json, MM.deadline.tick));
           this.cpu.spent += performance.now() - started;
           const since = clock.now() - this.cpu.since;
           if (since >= 1000) {
@@ -124,6 +135,7 @@ export function localGame(pkg, { QuickJS, ENGINE, clock = performance, log = con
           this.toSim = [];
           this.fin = target;
           this.log = this.log.filter((e) => e.k >= this.fin);
+          this.bots?.advance(json);
           if (wantHash) {
             this.check = [this.fin, r.h];
             this.hashAt = this.fin + MM.hashEvery * rate;
@@ -134,6 +146,11 @@ export function localGame(pkg, { QuickJS, ENGINE, clock = performance, log = con
         }
       }
       if (!this.over && this.elapsedMs > MM.maxGameSeconds * 1000) this.finish();
+      // The bots' moves, as if they'd just come in.
+      const t = Math.round(this.elapsedMs);
+      if (this.bots && !this.over && this.bots.due(t)) {
+        for (const [p, a] of this.bots.think(t, this.toSim.map(encode))) this.handleInput(this.ids[p], { a, t, c: ++this.botC[p] });
+      }
     }
 
     finish() {
@@ -175,6 +192,7 @@ export function localGame(pkg, { QuickJS, ENGINE, clock = performance, log = con
 
     getResults() {
       this.box.dispose();
+      this.bots?.dispose();
       return this.results;
     }
   };

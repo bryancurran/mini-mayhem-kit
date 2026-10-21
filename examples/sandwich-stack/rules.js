@@ -147,6 +147,71 @@ function ranking(state) {
   });
 }
 
+// ---- bots ------------------------------------------------------------------------------------
+//
+// How the server's bots play (bot() at the bottom; see "Bots" in docs/making-games.md). A good
+// player watches the layer slide and taps just as it passes over the top of the stack, so that's
+// what a bot aims for. Then it's made human, or it would never miss: each bot is sharper or
+// clumsier than the others, needs a moment to get going on a new layer, is always a touch early
+// or late, is off by a bit more on every drop (more as the layers speed up), slips now and then,
+// and now and then isn't ready and lets the layer go by once. Only bot() uses these helpers (they
+// start with "bot" so their names can't clash with view.js's).
+
+// Random numbers that come out the same every time they're asked for: the same seed, player and k
+// give the same list. A bot's habits come from k = -1, so they last the whole game. Its error on a
+// drop comes from k = the drop's number, so it stays put while the bot waits for its moment (fresh
+// numbers on every go would have it change its mind ten times a second).
+function botDice(seed, player, k) {
+  return mulberry32(seed ^ Math.imul(player + 1, 0x9e3779b1) ^ Math.imul(k + 1, 0x85ebca77));
+}
+
+// How long after layer n appeared it's over x for the k-th time (k = 0, 1, 2…): on the way across
+// (even k), on the way back (odd k), across again… sliderX worked backwards.
+function botPassAge(n, x, k) {
+  const A = STACK.swing;
+  const v = slideSpeed(n);
+  const u = n % 2 ? -x : x; // (sliderX mirrors every other layer)
+  const lap = (4 * A) / v; // there and back
+  return Math.floor(k / 2) * lap + (k % 2 ? 3 * A - u : A + u) / v;
+}
+
+// The moment (game time) this bot means to drop the layer sliding over sandwich s: the first time
+// it passes over the top once the bot's had time to react, give or take this drop's error. If
+// that moment's gone by (it's now `now`), the next time it passes.
+function botAim(s, player, seed, now) {
+  const n = s.layers.length;
+  const [topX, topW] = s.layers[n - 1];
+
+  // Its habits, the same all game. skill runs from 0 (clumsy) to 1 (sharp).
+  const habit = botDice(seed, player, -1);
+  const skill = habit();
+  const bias = (habit() - 0.5) * 0.04 * (1 - 0.7 * skill); // seconds early (-) or late (+), every time
+  const react = 0.12 + habit() * 0.08 + 0.12 * (1 - skill); // how soon it can tap a new layer
+
+  // This drop. `fast` goes from 0 on the first layer to 1 once they slide at full speed.
+  const roll = botDice(seed, player, s.drops);
+  const fast = (slideSpeed(n) - STACK.speedStart) / (STACK.speedMax - STACK.speedStart);
+  const spread = (0.006 + 0.06 * (1 - skill)) * (1 + 0.6 * fast);
+  // (Four random numbers added up make a bell curve: mostly small errors, now and then a big one.)
+  let off = bias + spread * (roll() + roll() + roll() + roll() - 2) * 1.732;
+  // A slip: way off, early or late.
+  if (roll() < (0.015 + 0.05 * fast) * (1.6 - skill)) off += (roll() < 0.5 ? -1 : 1) * (0.09 + roll() * 0.12);
+  // Not ready: lets the layer go by once (more often once the sandwich is narrow).
+  let skip = roll() < (topW < 1.2 ? 0.12 : 0.05) ? 1 : 0;
+
+  for (let k = 0; k < 40; k++) {
+    const age = botPassAge(n, topX, k);
+    if (age < react) continue;
+    if (skip > 0) {
+      skip--;
+      continue;
+    }
+    const at = s.at + Math.max(0.15, age + off);
+    if (at >= now - 0.12) return at; // (a little late is still worth a tap)
+  }
+  return Infinity;
+}
+
 defineRules({
   setup(game) {
     return {
@@ -181,5 +246,16 @@ defineRules({
 
   results(state) {
     return ranking(state);
+  },
+
+  // What a bot holds right now. The server asks ten times a second, so it taps on the go nearest
+  // the moment it aims for (never more than 0.05 s out: that's part of being human too). A tap is
+  // holding the button in one answer and letting go in the next: once a drop lands, the next
+  // layer isn't in for a moment, so the next answer is null, which lets go.
+  bot(state, player, game) {
+    const s = state.sandwiches[player];
+    const now = game.time; // (a press made now lands a moment later, within a tick: close enough)
+    if (!s || state.phase !== 'play' || now < s.at || now > STACK.roundTime) return null;
+    return now >= botAim(s, player, game.seed, now) - 0.05 ? { a: true } : null;
   },
 });

@@ -26,7 +26,7 @@ You use this repository locally. You never send anything back to it:
   Mini Mosh's server (https://minimosh.io/), which checks it and adds it to the game's
   library. When your user says "upload", "publish", "submit" or "share" the game, this is
   what they mean. Run it only when they ask. The kit has to be signed in to your user's Mini
-  Mosh account first (`npm run login`, see step 8), and the game shows that account's name as
+  Mosh account first (`npm run login`, see step 9), and the game shows that account's name as
   its maker (the name they play under, set in "Your name" on the site's home screen). Uploading
   a game that's already in their account updates it (see "Changing a game that's already in
   the library").
@@ -69,9 +69,8 @@ netcode, spectators, the results screen and coins. You write the rules and the l
    test an upload gets, and checks the id and name aren't taken in the library. Fix everything
    it reports before moving on.
    - Try other player counts with `-- --players 2,8`.
-   - The bots press random buttons, so a pass means it works, not that it's fun or fair. For
-     balance, play it, or write a quick script with smarter bots in `.scratch/` (git ignores
-     that folder).
+   - A pass means it works, not that it's fun or fair. For balance, play it, or write a quick
+     script in `.scratch/` (git ignores that folder).
 6. **Look at it:** `npm run shot <id>` saves screenshots of the game being played to `shots/`.
    Open them and check that:
    - the camera shows the action;
@@ -88,10 +87,15 @@ netcode, spectators, the results screen and coins. You write the rules and the l
    It also prints browser warnings, which is where a bad drawing command shows up. Run
    `npm run setup-browser` once first: it downloads a headless browser (about 110 MB) into
    `~/.cache/ms-playwright`, or into `PLAYWRIGHT_BROWSERS_PATH` if you set it.
-7. **Let your user play it:** `npm run play <id>` prints a link to the local playground. They
+7. **Write its bots:** a `bot()` in rules.js says what a bot holds right now, so the bots in
+   rooms, the playground and the check play the game properly instead of pressing at random.
+   Players add bots in private rooms to play against or to make up teams, so a game without
+   one is a lonely game, and the lobby warns them. Make them play well, then human: a moment to
+   react, a little off, an occasional slip. See "Bots" in `docs/making-games.md` and Coin Dash.
+8. **Let your user play it:** `npm run play <id>` prints a link to the local playground. They
    play against bots there, with a panel for network delay. `-- --host` also prints a link
    for phones on the same wifi.
-8. **Upload only when your user asks:** `npm run upload <id>` (not git).
+9. **Upload only when your user asks:** `npm run upload <id>` (not git).
    This is the only way a game gets into Mini Mosh. It's checked
    again and reviewed, and every reason for a rejection is printed: fix them and upload again.
    Each player can upload 6 times an hour, and have up to 100 games in the library.
@@ -167,7 +171,7 @@ of the rest.
 - **Or typing (`"text": "enter"` or `"live"`), and nothing else.** Players type into a text box
   (a phone's keyboard pops up for it). A gamepad can't play a typing game, so only make one when
   typing is the idea (word races, guessing words, answering questions), and agree it with your
-  user first. Write a `bot()` in rules.js so the check's bots type real answers, and make sure the
+  user first. Its `bot()` returns what to type, so the bots type real answers, and make sure the
   game also ends on a timer. See "Typing games" in `docs/making-games.md`.
 - **It must end, for any number of players `players` allows** (1 to 8 for most games, and solo
   practice is how people try a game). Call `game.end()` and make `results()` place every
@@ -245,6 +249,8 @@ It doesn't judge quality: simple games are welcome.
 - **"never ended":** nothing calls `game.end()` for some player count (try `-- --players 1`).
 - **"crashed ... at step (rules.js:NN)":** an exception in your rules. The line number is in
   your file.
+- **"bot() failed":** your `bot()` threw (often on a state it didn't expect: the countdown, a
+  player who's out, the end). Guard those.
 - **"holds something other than plain data":** an `undefined`, `NaN`, `Infinity` or non-plain
   object got into the state.
 - **"interrupted" or "used ... ms of server time":** too slow. Do less work per tick (no big
@@ -258,7 +264,7 @@ It doesn't judge quality: simple games are welcome.
 AGENTS.md                this file
 docs/making-games.md     the full API: manifest, rules, view, the mm kit, netcode, limits
 docs/style-guide.md      the house style: look, palette, Moshes, camera, motion, feedback, words
-examples/coin-dash/      the starter game (small, avatars, a stick, instances)
+examples/coin-dash/      the starter game (small, avatars, a stick, instances, bot())
 examples/sandwich-stack/ a full game (custom geometry, textures, baking, events)
 examples/word-rush/      a typing game (the text box, live typing, bot())
 templates/starter/       what npm run new copies

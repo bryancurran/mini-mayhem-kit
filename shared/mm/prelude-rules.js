@@ -226,6 +226,26 @@
     return false;
   }
 
+  // Makes plain data read-only, all the way down (and returns it).
+  function freeze(v) {
+    if (v === null || typeof v !== 'object' || Object.isFrozen(v)) return v;
+    Object.freeze(v);
+    if (Array.isArray(v)) for (let i = 0; i < v.length; i++) freeze(v[i]);
+    else for (const k in v) freeze(v[k]);
+    return v;
+  }
+
+  // What rules.bot says a bot playing `player` does, given a state `s` it can only read (one
+  // throwaway copy, frozen, serves every bot in a go: freezing it once is quicker than a copy for
+  // each), as JSON. It sees the game's clock as of the state.
+  function answer(st, s, player) {
+    game.tick = st.tick;
+    game.time = st.tick / E.rate;
+    game.dt = 1 / E.rate;
+    const r = inRules(() => rules.bot(s, player, game));
+    return r === undefined ? 'null' : JSON.stringify(r);
+  }
+
   // ---- called from outside ----------------------------------------------------------------
 
   const CATCH_UP = 900; // most ticks simulated in one call (catching up after a background tab)
@@ -414,14 +434,38 @@
       return isPlain(E.conf.s, 0) ? 'yes' : 'no';
     },
 
-    // What a bot playing { player } would type now (rules.bot, for typing games), from the
-    // predicted state: for the bots in the play test and the kit's playground. '' if the game
-    // doesn't say. Nothing it does reaches the state.
+    // Whether the game says how bots play it (rules.bot).
+    hasBot() {
+      return typeof rules.bot === 'function' ? 'yes' : 'no';
+    },
+
+    // What a bot playing { player } does now (rules.bot), from the predicted state, as JSON: what
+    // it holds ({ move, a, b, dir }) or, in a typing game, what it would type. For the bots in
+    // the play test. null if the game doesn't say. It gets a frozen copy of the state.
     bot(json) {
-      if (typeof rules.bot !== 'function' || !E.pred) return '';
+      if (typeof rules.bot !== 'function' || !E.pred) return 'null';
       const { player } = JSON.parse(json);
-      const text = inRules(() => rules.bot(JSON.parse(JSON.stringify(E.pred.s)), player, game));
-      return typeof text === 'string' ? text : '';
+      return answer(E.pred, freeze(copy(E.pred.s)), player);
+    },
+
+    // The server's bots (see shared/mm/bots.js), from a copy of the game run alongside the real
+    // one: { to, players: [index], log } -> [answer as JSON, or { error } if bot() threw]. The
+    // confirmed state is moved on to tick `to` (the present) through every input there is so far
+    // (log: those this copy hasn't been given yet), so bots see the game as it is now, their own
+    // last moves included.
+    bots(json) {
+      const a = JSON.parse(json);
+      if (typeof rules.bot !== 'function') return '[]';
+      const st = clone(E.conf);
+      advance(st, a.to, byTick(E.log.concat((a.log || []).map(decode))), null, CATCH_UP);
+      const s = freeze(st.s);
+      return `[${a.players.map((p) => {
+        try {
+          return answer(st, s, p);
+        } catch (e) {
+          return JSON.stringify({ error: String((e && e.message) || e).slice(0, 300) });
+        }
+      }).join(',')}]`;
     },
 
     // The predicted state, for debugging tools and tests.

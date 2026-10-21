@@ -3,6 +3,19 @@
 `npm run update` gets the latest kit and prints what changed since yours. Uploads need the
 latest kit: Mini Mosh turns down games packed with an older one, and says how to update.
 
+## v15 (October 2026)
+
+- **Bots that play your game:** hosts can now add bots to private rooms, to play against or to
+  make up a team. Your rules' `bot(state, player, game)` says what a bot holds right now (`{ move:
+  { x, y }, a, b }`, a direction tap `{ dir }`, or in a typing game what to type), and the server
+  asks it ten times a second for each bot. Without one, bots press buttons at random, and the
+  lobby warns players. See "Bots" in docs/making-games.md, and Coin Dash's.
+- **Your games already in the library** keep working, with bots that press at random. Give each a
+  `bot()` and upload it again, so people can play it with bots.
+- The playground's bots and the check's play by your `bot()` too (the check's mix in random
+  presses), and the check fails if it throws.
+- Packages say `"kit": 15`. Uploads need kit v15: run `npm run update`.
+
 ## v14 (October 2026)
 
 - **Morphs:** `mm.geometry({ ..., morphs: [offsets, ...] })` and a mesh's `morph: [weights]` blend a

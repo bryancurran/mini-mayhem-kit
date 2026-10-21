@@ -17,7 +17,8 @@ description: Make, change, test and upload Mini Mosh party minigames (.mm packag
    `games/<id>/manifest.json` (including `players`, how many it takes), `rules.js` and `view.js`. To change a game that's already in the
    library, work on its folder in `games/` (or `npm run get <id>` if it isn't on this computer)
    and keep its id.
-4. After every change, run `npm run check <id>` and fix everything it reports.
+4. After every change, run `npm run check <id>` and fix everything it reports. Write a `bot()`
+   in rules.js so bots play it properly (see "Bots" in `docs/making-games.md`).
 5. Look at it: `npm run shot <id>` (and `npm run shot <id> -- --phone`), then open the PNGs it
    prints. Run `npm run setup-browser` once if it asks for a browser.
 6. Ask the user to play it with `npm run play <id>`.

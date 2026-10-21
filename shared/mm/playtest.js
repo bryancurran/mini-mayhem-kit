@@ -1,10 +1,12 @@
-import { MM, botWord, cleanText, tickOf } from './format.js';
+import { BOT_THINK_MS, botHands } from './bots.js';
+import { MM, tickOf } from './format.js';
 import { Sandbox } from './sandbox.js';
 
 // Plays a packaged minigame headless, with a simulated clock and simulated network delays: a
-// server-side game (runtime.makeGame) and browser sandboxes like the real ones. Bots press
-// random (but valid) inputs, a spectator watches from the start and another joins halfway
-// through from the late-join state. Used by tools/mm.mjs check, by uploads, and by the creator
+// server-side game (runtime.makeGame) and browser sandboxes like the real ones. Bots play by the
+// game's bot() if it has one, and now and then (or always, without one) press random (but valid)
+// inputs; a spectator watches from the start and another joins halfway through from the
+// late-join state. Used by tools/mm.mjs check, by uploads, and by the creator
 // kit (with its local stand-in for the server).
 //
 // runtime: { QuickJS, ENGINE, KIT, makeGame(pkg, { clock, log }) -> game class }.
@@ -105,7 +107,9 @@ export function playtest(pkg, { runtime, players = 4, games = 2, seed = 12345, m
         MM.deadline.setup,
       );
       checkCommands(setup);
-      return { me, box, screen: SCREENS[(me + 2) % 2], delay: 15 + rand() * 110, inbox: { log: [], fin: from.fin, hash: null }, next: 0, nextPress: 500 + rand() * 1500 };
+      const smart = me >= 0 && box.call('hasBot', '', MM.deadline.tick) === 'yes';
+      const hands = botHands(m.input, { rand, wild: 0.2 });
+      return { me, box, screen: SCREENS[(me + 2) % 2], delay: 15 + rand() * 110, inbox: { log: [], fin: from.fin, hash: null }, next: 0, smart, hands, nextThink: 500 + rand() * 1500 };
     }
 
     function checkCommands(text) {
@@ -116,42 +120,19 @@ export function playtest(pkg, { runtime, players = 4, games = 2, seed = 12345, m
       stats.commands.push(cmds.length);
     }
 
-    // Random but plausible input for whatever the game asked for.
+    // What the bot does next: what the game's bot() says (see bots.js), or random presses.
     function botInputs(c, t) {
-      const out = [];
-      const spec = m.input;
-      if (t < c.nextPress) return out;
-      c.nextPress = t + 120 + rand() * 900;
-      if (spec.text) return botTyping(c, t, spec);
-      const choices = [];
-      if (spec.buttons.length) choices.push('button');
-      if (spec.dirs) choices.push('dir');
-      if (spec.move) choices.push('move');
-      const pick = choices[Math.floor(rand() * choices.length)];
-      if (pick === 'button') {
-        const b = spec.buttons[Math.floor(rand() * spec.buttons.length)];
-        out.push(['p', b], ['r', b]);
-      } else if (pick === 'dir') out.push(['d', 'udlr'[Math.floor(rand() * 4)]]);
-      else if (pick === 'move') out.push(['m', Math.round((rand() * 2 - 1) * 10) * 10, Math.round((rand() * 2 - 1) * 10) * 10]);
-      return out;
-    }
-
-    // A word (see botWord) a letter at a time, then Enter.
-    function botTyping(c, t, spec) {
-      const out = [];
-      if (c.word === undefined || c.word === null) {
-        c.word = cleanText(botWord(c.box.call('bot', JSON.stringify({ player: c.me }), MM.deadline.tick), rand), spec.maxLength);
-        c.typed = '';
+      if (t < c.nextThink) return [];
+      c.nextThink = t + BOT_THINK_MS;
+      let answer;
+      if (c.smart) {
+        try {
+          answer = JSON.parse(c.box.call('bot', JSON.stringify({ player: c.me }), MM.deadline.tick));
+        } catch (e) {
+          throw new Error(`bot() failed: ${e.message}`);
+        }
       }
-      if (c.typed.length < c.word.length) {
-        c.typed = c.word.slice(0, c.typed.length + 1);
-        if (spec.text === 'live') out.push(['t', c.typed, 0]);
-        c.nextPress = t + 60 + rand() * 180;
-      } else {
-        out.push(['t', c.typed, 1]);
-        c.word = null;
-      }
-      return out;
+      return c.hands.act(answer, t);
     }
 
     function receive(c, snap) {

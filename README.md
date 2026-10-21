@@ -22,7 +22,8 @@ play with friends in the browser, and upload them to its library so anyone can p
    example games and the guide.
 2. **Make a game** in `games/<id>/`. Nothing you make is ever sent anywhere until step 4.
 3. **Try it locally** as often as you like:
-   - `npm run play <id>` lets you play it in your browser against bots;
+   - `npm run play <id>` lets you play it in your browser against bots (they play by your
+     rules' `bot()`, as bots in rooms do);
    - `npm run check <id>` runs the same bot test an upload gets;
    - `npm run shot <id>` takes screenshots.
 4. **Upload it** with `npm run upload <id>`. This goes straight to Mini

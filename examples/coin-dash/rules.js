@@ -96,4 +96,23 @@ defineRules({
   results(state) {
     return ranking(state);
   },
+
+  // How a bot plays: what it holds right now (the server asks ten times a second; see "Bots" in
+  // docs/making-games.md). Run for the nearest coin that nobody else is nearer to (so bots spread
+  // out), and dash at it when it's a way off, though not always straight away, like a person.
+  bot(state, player, game) {
+    const p = state.players[player];
+    if (state.phase !== 'play') return null;
+    let best = null;
+    let bestScore = Infinity;
+    for (const [x, z] of state.coins) {
+      const d = Math.hypot(x - p.x, z - p.z);
+      const taken = state.players.some((q, i) => i !== player && Math.hypot(x - q.x, z - q.z) < d);
+      const score = taken ? d + 6 : d;
+      if (score < bestScore) (best = { x, z, d }), (bestScore = score);
+    }
+    if (!best || best.d < 0.01) return null;
+    // (The stick's y is up the screen, which is -z here.)
+    return { move: { x: (best.x - p.x) / best.d, y: -(best.z - p.z) / best.d }, a: best.d > 3 && p.cool <= 0 && game.random() < 0.3 };
+  },
 });

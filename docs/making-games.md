@@ -8,8 +8,8 @@ the countdown, controls on keyboard, gamepad and touch, netcode, spectators, the
 screen and coins.
 
 You make them with the creator kit (https://github.com/bryancurran/mini-mayhem-kit). It has
-a starter template, examples, a playground for trying games in your browser, the same bot
-check uploads get, screenshots, and an upload command. `examples/coin-dash/` is small (avatars
+a starter template, examples, a playground for trying games in your browser against bots, the
+same bot check uploads get, screenshots, and an upload command. `examples/coin-dash/` is small (avatars
 and a stick); `examples/sandwich-stack/` is a full game; `examples/word-rush/` is a typing game.
 To make a game look and feel like the standard ones, follow `docs/style-guide.md`.
 
@@ -116,10 +116,10 @@ prompts in the state, drawn by view.js, and set the box's placeholder to what to
 add capitals and spaces of their own. Everything typed reaches every player's browser, the same as
 any input.
 
-Bots type too (in `npm run check` and the playground): a word at a time, a letter at a time.
-They type what your rules' `bot()` says a good player would type now, and now and then a random
-word, so wrong answers get tried as well. Without `bot()` they only type random words, so a game
-that needs the right words to end must also end on a timer. See `examples/word-rush`.
+Bots type too: a word at a time, a letter at a time, then Enter. They type what your rules'
+`bot()` says a good player would type now (see Bots); the check's bots also type a random word
+now and then, so wrong answers get tried as well. Without `bot()` they only type random words, so
+a game that needs the right words to end must also end on a timer. See `examples/word-rush`.
 
 ## rules.js
 
@@ -141,9 +141,9 @@ defineRules({
   results(state, game) {
     return game.players.map((p) => ({ player: p.index, place: 1 + state.scores.filter((s) => s > state.scores[p.index]).length }));
   },
-  // Typing games only, and optional: what a good player would type now (only bots use it).
+  // Optional: what a bot playing `player` holds right now (see Bots).
   bot(state, player, game) {
-    return state.words[state.at[player]];
+    return { move: { x: 1, y: 0 }, a: state.scores[player] < 10 };
   },
 });
 ```
@@ -187,6 +187,35 @@ presses instantly and still agree with everyone else:
 
 Anything rules.js defines at the top level (constants, helper functions) is visible to
 view.js too, so shared maths only needs writing once.
+
+### Bots
+
+A private room's host can add bots to play against, or to make up the numbers, and the
+playground plays you against them. The server plays for them: ten times a second it asks your
+rules' `bot(state, player, game)` what the bot playing `player` (an index) does, given the game
+as it is at that moment (its own last moves included), and turns the answer into the inputs a
+player's controls would send. Return what the bot is holding right now:
+
+- `{ move: { x, y }, a: true, b: false }`: the stick (x and y from -1 to 1, y up, as in `move`
+  inputs) and the buttons held. Leave out what it isn't holding: `{}` or `null` lets go of
+  everything. A press lasts until an answer leaves the button out, so to tap one, hold it in one
+  answer and let go in the next.
+- `{ dir: 'up' }`: a direction tap (with `input.dirs`), once for each answer that has it.
+- In a typing game, a string: what a good player would type now (`''` for nothing just now).
+
+Only what the manifest's `input` asks for is used. `bot()` gets the state read-only (frozen: one
+copy serves all the bots, so work things out in variables of your own rather than writing to
+it) and `game` as in `step()`, `random()` included. It runs only on the server (and in the check
+and the playground), never in players' browsers, so it can look at anything in the state; keep
+it quick, though: the bots of a game that takes more than a few milliseconds a go think less
+often. If it throws, that bot keeps holding what it held until its next go, and `npm run check`
+fails, saying why.
+
+Without `bot()`, bots press buttons at random. That's enough to see your game doesn't break, but
+useless as an opponent or a teammate, and the lobby warns players when a game's bots only press
+at random. So write one: make it play the way a good player would, then make it human. People
+take a moment to react, aim a little off and slip up now and then; a bot that plays perfectly
+is no fun to play against. See the starter game (Coin Dash) and `examples/word-rush`.
 
 Browsers copy the state as they predict, about once a tick, so a small state makes for a quicker
 game. Anything that never changes and follows from `game.seed` alone (a map, a schedule) can be
@@ -755,11 +784,12 @@ computer).
 ## npm run check
 
 The check plays the package with a stand-in for the server that follows the same rules, and the
-same browser sandbox, using a simulated clock and network delays: bots with random inputs, a
-spectator from the start, and one who joins halfway (3 players, then the fewest your `players`
+same browser sandbox, using a simulated clock and network delays: bots (playing by your `bot()`,
+with random inputs mixed in), a spectator from the start, and one who joins halfway (3 players, then the fewest your `players`
 allows, usually solo; `-- --players 4,2` for others, inside that range). It fails if:
 
 - the game crashes, never ends, or `results()` doesn't place everyone;
+- `bot()` throws;
 - any browser's state disagrees with the server's, or replaying the inputs from scratch gives
   a different result;
 - the state holds anything that isn't plain data;
@@ -767,9 +797,9 @@ allows, usually solo; `-- --players 4,2` for others, inside that range). It fail
 
 The check doesn't look at what you pass to the drawing commands. A bad shape, color or
 property shows up as a warning in the playground's panel and in `npm run shot`'s output, so
-look at those too. The bots press random buttons, which catches crashes but says nothing
-about whether the game is fun or fair. Play it, or write a small script with smarter bots in
-`.scratch/` (git ignores that folder).
+look at those too. A pass says nothing about whether the game is fun or fair. Play it (the
+playground's bots play by your `bot()`), or write a small script in `.scratch/` (git ignores that
+folder).
 
 It also prints how long ticks and frames take. `npm run shot my-game` saves screenshots of the
 game being played, so you can see what players will see. Its options:
