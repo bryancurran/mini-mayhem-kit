@@ -520,7 +520,7 @@ mm.music(name, { volume })                      // a music loop: 'happy-adventur
 mm.loop(key, name, { volume, pitch })           // a looping sound under a key of yours (null: stop it)
 ```
 
-Mini Mosh has a sound library: over 1,100 sounds (2,000 recordings) and 78 music loops, all free
+Mini Mosh has a sound library: over 1,100 sounds (2,000 recordings) and 80 music loops, all free
 for anyone to use (CC0), kept on the server. Games name the ones they want; nobody uploads a
 sound. **Listen to them with `npm run sounds`** (a page in the playground: search, play every
 take, try the music), or find them from the terminal with `npm run sounds -- coin` (any words:
@@ -538,6 +538,7 @@ it lists the names, how many takes and how long). A sound's name is `category/wh
 | `jingle/` | short musical stingers for a win, a loss or a level up, in five styles (`nes`, `sax`, `pizzicato`, `steel-drum`, `hit`) |
 | `casino/`, `item/`, `rpg/`, `foley/`, `magic/`, `scifi/`, `weird/` | cards, dice and chips; coins, gems, books, doors, keys; tools, springs, bells; spells; engines, force fields; odd noises |
 | `ambience/` | loops: rain, water, bubbles, machines, alarms, fireworks |
+| `weather/` | wind: `weather/gust` (a gust that swells and dies away in two and a half seconds), `weather/wind` (longer ones) |
 
 - **Takes.** Many sounds have several takes (recordings of the same kind of sound: `hit/wood-heavy`
   has five). Each time it plays, one is picked at random (never the same twice running), a touch
@@ -547,8 +548,8 @@ it lists the names, how many takes and how long). A sound's name is `category/wh
   fast), `pan` (-1 left to 1 right).
 - **Music:** `mm.music('happy-adventure')` plays one loop at a time, faded in; another name fades
   across to it, and `null` fades it out. It stops when the game ends. The browser lists every loop
-  with words for its mood (upbeat, sporty, retro, calm, spooky, electronic, winter...). Keep it
-  under the action: `volume` 0.5 to 1.
+  with words for its mood (upbeat, sporty, retro, calm, tense, spooky, electronic, winter...).
+  Keep it under the action: `volume` 0.5 to 1.
 - **Loops:** `mm.loop('engine', 'retro/vehicle-engineloop', { pitch: 0.7 + speed * 0.05 })` every
   frame plays a loop under that key and eases its volume and pitch to what you ask (so an engine
   follows the speed); `null` stops it; up to 4 keys at once. Any sound can loop, but the ones made
@@ -612,8 +613,9 @@ mm.hud.dial(lean, { danger })                            // a half-circle dial w
 - `mm.hud.hint(false)`: the controls hint along the bottom stays hidden until `hint(true)`, for a
   game whose controls only matter now and then (the answer stage).
 - `mm.hud.dial`: Tightrope Tumble's balance meter: a needle over a half-circle, green in the
-  middle, yellow then red toward the ends; `value` from -1 (needle all the way left) to 1 (right),
-  and a little past either end. `danger: true` makes it pulse (about to fall). Above the controls
+  middle (a narrow dark green band right in the middle, a tenth of the way to either end), yellow
+  then red toward the ends; `value` from -1 (needle all the way left) to 1 (right), and a little
+  past either end. `danger: true` makes it pulse (about to fall). Above the controls
   hint on wide screens, under the top of the HUD on phones. Update it every frame, from the state
   (between the last two ticks with `view.alpha` for an even sweep).
 - `mm.hud.place`: where you are in the race right now, at the top right (`null` for

@@ -2606,8 +2606,8 @@ button.user-game {
 
 /* ---- Tightrope Tumble ---------------------------------------------------------- */
 
-/* Balance meter: a half dial, green in the middle and red at the ends, with a needle that
-   shows how far over you are. */
+/* Balance meter: a half dial, green in the middle (dark green right in the middle, where you walk
+   fastest) and red at the ends, with a needle that shows how far over you are. */
 .rope-meter {
   position: absolute;
   left: 50%;
@@ -2628,7 +2628,7 @@ button.user-game {
   border: 4px solid var(--line);
   background:
     radial-gradient(circle at 50% 50%, var(--paper) 0 56%, transparent 57%),
-    conic-gradient(from -90deg, #ff4d5e 0 14deg, #ffcc33 14deg 46deg, #7ef09a 46deg 134deg, #ffcc33 134deg 166deg, #ff4d5e 166deg 180deg, transparent 180deg);
+    conic-gradient(from -90deg, #ff4d5e 0 14deg, #ffcc33 14deg 46deg, #7ef09a 46deg 81deg, #1fa855 81deg 99deg, #7ef09a 99deg 134deg, #ffcc33 134deg 166deg, #ff4d5e 166deg 180deg, transparent 180deg);
   box-shadow: 0 4px 0 var(--line);
 }
 

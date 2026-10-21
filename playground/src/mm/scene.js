@@ -568,6 +568,7 @@ export class SceneHost {
     this.particles = null;
     this.ripples = null;
     this.clouds = null;
+    this.sky = null; // the sky from mm.world({ sky })
     this.sun = null; // the sun from mm.world({ lights })
     this.cloudWrap = null; // drifting clouds come back round at x = ±this
     this.backdrop = null; // mm.world({ backdrop }): { mesh, z }
@@ -1483,7 +1484,7 @@ export class SceneHost {
   // water: { y }, background, fog: [color, near, far] }.
   world(o) {
     const once = (key) => !this.worldDone.has(key) && this.worldDone.add(key);
-    if (o.sky && once('sky')) addSky(this.scene);
+    if (o.sky && once('sky')) this.sky = addSky(this.scene);
     if (o.lights && once('lights')) {
       const l = o.lights;
       const sun = addLights(this.scene, { shadowSize: num(l.shadowSize, 4, 200, 20) });
@@ -1621,6 +1622,9 @@ export class SceneHost {
     for (const g of this.gliding) if (!g.step(this.clock)) this.gliding.delete(g);
     for (const set of this.instanceSets) set.step(this.clock, dt);
     if (this.cameraGlide) this.camera.lookAt(this.cameraGlide.look.position);
+    // The sky moves along with the camera across the ground (not up: a climb's sky still changes
+    // with height), so a camera far from the middle never sees past its far side.
+    this.sky?.position.set(this.camera.position.x, 0, this.camera.position.z);
     this.frameSafe();
     for (const n of this.nodes.values()) {
       if (!n.avatar) continue;
