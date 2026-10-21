@@ -16,8 +16,10 @@ import { playSound, setLoop, setMusic, setSoundBase } from './src/sounds.js';
 // connection can be given a delay so you see how prediction feels online.
 //
 // URL: ?game=<id>&bots=3&lag=0 (ms each way)&seed=7 (the same game.random() every time).
-// &autoplay presses buttons (or types) for you (screenshots). ?sounds: the sound library, to
-// listen to (npm run sounds).
+// &autoplay presses buttons (or types) for you (screenshots). &slow gives the game's scripts ten
+// times as long before they're stopped for taking too long, for a machine that's slow at drawing
+// (the server's screenshots draw without a graphics card). ?sounds: the sound library, to listen
+// to (npm run sounds).
 
 // The sound library's files come from Mini Mosh's server (MM_SERVER, set by tools/playground.mjs).
 setSoundBase(new URL('sounds/', import.meta.env.MM_SERVER || 'https://minimosh.io/').href);
@@ -30,6 +32,12 @@ const bots = Math.max(0, Math.min(7, Number(params.get('bots') ?? 3) || 0));
 const lag = Math.max(0, Math.min(1000, Number(params.get('lag') ?? 0) || 0));
 const autoplay = params.has('autoplay');
 const seed = params.has('seed') ? Number(params.get('seed')) : undefined;
+if (params.has('slow')) {
+  // The limits still hold everywhere that matters: in the check, on the server and in players'
+  // browsers.
+  for (const k of Object.keys(MM.deadline)) MM.deadline[k] *= 10;
+  MM.clientCpuShare = 1;
+}
 const dev = document.getElementById('dev');
 const ui = document.getElementById('ui');
 const errors = [];
