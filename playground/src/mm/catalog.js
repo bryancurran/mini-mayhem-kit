@@ -1,4 +1,4 @@
-import { MINIGAMES, USER_MINIGAME_IDS, registerMinigame, unregisterMinigame } from '../../../shared/minigames.js';
+import { MINIGAMES, registerMinigame, unregisterMinigame } from '../../../shared/minigames.js';
 import { parsePackage } from '../../../shared/mm/format.js';
 
 // Packaged (.mm) minigames: the server lists them at mm/catalog.json and serves each package at
@@ -26,7 +26,8 @@ export async function loadCatalog() {
       registerMinigame(info);
     }
     const listed = new Set(data.games.map((g) => g.id));
-    for (const id of USER_MINIGAME_IDS.filter((id) => !listed.has(id))) {
+    // (Every user-created game, the ones picked for the standard pool too.)
+    for (const id of Object.keys(MINIGAMES).filter((id) => MINIGAMES[id].source === 'user' && !listed.has(id))) {
       unregisterMinigame(id);
       packages.delete(id);
     }
