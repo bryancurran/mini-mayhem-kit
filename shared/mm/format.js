@@ -150,7 +150,7 @@ export const platformsOf = (manifest) => (manifest.input.text ? ['pc', 'mobile']
 // What the lobby needs to list a packaged minigame (same shape as shared/minigames.js entries).
 // source is 'standard' (in the repo's games/ folder) or 'user' (uploaded by a player); version
 // changes whenever the package does, so browsers know to fetch it again.
-export function lobbyInfo(manifest, { source = 'standard', by, uploadedAt, updatedAt, version } = {}) {
+export function lobbyInfo(manifest, { source = 'standard', by, uploadedAt, updatedAt, version, release } = {}) {
   const { id, name, color, tagline, rules, controls } = manifest;
   return {
     id,
@@ -166,6 +166,7 @@ export function lobbyInfo(manifest, { source = 'standard', by, uploadedAt, updat
     ...(uploadedAt ? { uploadedAt } : {}),
     ...(updatedAt ? { updatedAt } : {}),
     ...(version ? { version } : {}),
+    ...(release ? { release } : {}), // a user-created game's version number: 1, 2, ...
   };
 }
 

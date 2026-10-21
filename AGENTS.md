@@ -124,6 +124,11 @@ sounds and music in the sound library. Flags go after `--` (that's how npm passe
   game (pick another id) or the kit is signed in to the wrong account.
 - **The files aren't on this computer:** `npm run get <id>` downloads the game from the library
   into `games/<id>/`, ready to change and upload again.
+- **Start from the library's version:** Mini Mosh sometimes improves games for their makers (it
+  gave every game in the library bots that play it: a `bot()` in rules.js). Before changing a game
+  that's in the library, compare your copy with the library's (move `games/<id>` aside, `npm run
+  get <id>`, compare) and keep what was added, or your upload takes it out. An update that would
+  drop a game's `bot()` is turned down.
 - **To take it out of the library:** `npm run delete <id>`, only when your user asks. It doesn't
   touch the files in `games/`.
 
