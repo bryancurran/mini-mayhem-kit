@@ -57,6 +57,10 @@ to the game's library (see Uploading).
   for games played a move at a time. It costs server time (see Limits), so keep `step` lean.
 - `go`: `false` leaves out the big "GO!" and its sound when the countdown ends, for a game that
   opens with something of its own (Mosh Count's "Round 1" card).
+- `count`: how many of the countdown's last seconds are counted out, for an opening shot before
+  them. With `"countdown": 5, "count": 3`, the game's name shows for two seconds over whatever
+  your view draws (fly the camera over the arena: `view.time` runs from -5 to 0), then 3, 2, 1
+  and GO. Leave it out to count every second.
 - `players` (required): the fewest and the most players the game takes, from 1 to 8. The lobby
   won't start it with fewer or more, and the play test, the playground and the bots stay inside
   it. Take 1 to 8 if you can: a room holds up to 8, and playing alone is how people practise and
@@ -95,6 +99,10 @@ another axis (a board turned sideways to fit a phone held upright) turns them to
 `mm.controls({ turn: 1 })` in view.js: every direction and stick a player gives is turned that
 many quarter turns clockwise (up becomes right) before it's sent, so the rules get directions on
 the board. Call it again when the camera turns back (`turn: 0`).
+
+`mm.controls({ button: false })` hides the button of the `"stick"` touch layout, for a player who
+can't use it any more (one who's out of the round); `button: true` shows it again.
+The stick stays. Keyboards and gamepads are unchanged.
 
 ### Typing games
 
@@ -287,7 +295,9 @@ positions straight from the state, and don't smooth them yourself as well: that 
   for teleports, respawns, a coin that reappears somewhere else.
 - `smooth: false` on a node (or `mm.camera`) turns gliding off for it, for things you animate
   exactly yourself every frame (a camera you ease and shake, tumbling debris).
-- Things just made, shown again after being hidden, or moved to another parent always jump.
+- Things just made, shown again after being hidden, or moved to another parent always jump. So
+  do a node's first position, turn and size, and anything set in the frame it's made (a mesh
+  made and then `.set()` in place goes straight there).
 
 ### Smoothing corrections
 

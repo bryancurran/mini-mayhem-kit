@@ -53,6 +53,18 @@ export class Controls {
     if (spec.text) this.buildText(hud, on);
   }
 
+  // Shows or hides the touch button (mm.controls({ button })), for a player who's out: hidden, it
+  // lets go of a press.
+  showButton(show) {
+    const el = this.touchStick && this.input.touchEl?.querySelector('.dash-btn');
+    if (!el || el.style.display === (show ? '' : 'none')) return;
+    el.style.display = show ? '' : 'none';
+    if (!show) {
+      this.input.touchActionDown = false;
+      el.classList.remove('pressed');
+    }
+  }
+
   // A typing game: Enter sends what's in the text box and empties it. With "live", what's in it
   // so far goes too, as it changes. On a computer, typing anywhere goes into the box.
   buildText(hud, on) {

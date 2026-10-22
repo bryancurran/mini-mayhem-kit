@@ -15,6 +15,14 @@ latest kit: Mini Mosh turns down games packed with an older one, and says how to
 - The playground's bots and the check's play by your `bot()` too (the check's mix in random
   presses), and the check fails if it throws.
 - Packages say `"kit": 15`. Uploads need kit v15: run `npm run update`.
+- **An opening shot** (added later in v15; older v15 kits ignore it): `"countdown": 5, "count": 3`
+  in the manifest shows your game's name for two seconds before 3, 2, 1, while your view flies
+  the camera over the arena (`view.time` from -5). See `count` in docs/making-games.md.
+- **No more flying in from the middle** (added later in v15): a node made and then `.set()` in
+  place the same frame, or given its first position later, goes straight there. Before, it
+  glided over from the middle of the world for a tick (Ribbon Rush's new ribbon pieces).
+- **Hiding the touch button** (added later in v15): `mm.controls({ button: false })` hides the
+  stick layout's button on phones, for a player who's out (Flag Frenzy). See docs/making-games.md.
 
 ## v14 (October 2026)
 

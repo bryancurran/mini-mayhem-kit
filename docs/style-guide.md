@@ -178,6 +178,10 @@ mm.burst({ pos, count: 40, speed: 7, up: 9, life: 1.6, size: 0.16, gravity: 12, 
   fun as practice.
 - Start with a beat of calm (the 3-second countdown, `countdown: 3`), build to a dramatic finish,
   and give players behind a way to catch up.
+- Or open with a shot of the arena: `countdown: 5` and `count: 3` give two seconds under the
+  game's name before 3, 2, 1. Fly the camera from a wide view of the whole place (where the
+  hazards are, where the goal is) round and in to where it sits for play, arriving just before
+  GO, with the music already going (Tightrope Tumble, Bumper Bash).
 - End with a `done` phase of about 2 seconds: winners `cheer`, confetti flies, the camera eases in.
   Announce the winner from `view.confirmed` (never from a predicted event): "YOU WIN!" for the
   winner, "TIME!" and a "Name wins!" banner for everyone else, "TIE!" for a shared first place.

@@ -68,6 +68,9 @@ export function checkManifest(raw) {
   if (!Number.isInteger(tickRate) || tickRate < 10 || tickRate > 60) errors.push('tickRate: a whole number from 10 to 60');
   const countdown = m.countdown ?? 3;
   if (!Number.isInteger(countdown) || countdown < 0 || countdown > 5) errors.push('countdown: 0-5 seconds');
+  // How many of the countdown's last seconds are counted out (3, 2, 1): the ones before are the
+  // game's opening shot, under its name. Leave it out to count them all.
+  if (m.count !== undefined && (!Number.isInteger(m.count) || m.count < 1 || m.count > countdown)) errors.push('count: 1 up to the countdown');
   // The fewest and most players it takes. Games uploaded since kit v4 all say; older ones take 1-8.
   const players = m.players;
   if (players !== undefined) {
@@ -106,6 +109,7 @@ export function checkManifest(raw) {
     ...(m.go === false ? { go: false } : {}),
     tickRate,
     countdown,
+    ...(m.count !== undefined ? { count: m.count } : {}),
     ...(players !== undefined ? { players: { min: players?.min, max: players?.max } } : {}),
     input: {
       buttons: input.buttons,
@@ -151,7 +155,7 @@ export const platformsOf = (manifest) => (manifest.input.text ? ['pc', 'mobile']
 // source is 'standard' (in the repo's games/ folder) or 'user' (uploaded by a player); version
 // changes whenever the package does, so browsers know to fetch it again.
 export function lobbyInfo(manifest, { source = 'standard', by, uploadedAt, updatedAt, version, release } = {}) {
-  const { id, name, color, tagline, rules, controls } = manifest;
+  const { id, name, color, tagline, rules, controls, count } = manifest;
   return {
     id,
     name,
@@ -159,6 +163,7 @@ export function lobbyInfo(manifest, { source = 'standard', by, uploadedAt, updat
     tagline,
     rules,
     controls,
+    ...(count !== undefined ? { count } : {}), // (the browser's countdown, before the package is in)
     platforms: platformsOf(manifest),
     mm: true,
     source,

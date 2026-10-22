@@ -226,7 +226,8 @@
     mist: (props) => new Node('mist', props),
     // How the controls behave: { turn } adds quarter turns clockwise to every direction the
     // player gives, for a camera that looks along another axis (up on screen is then right on the
-    // floor). Sent only when it changes.
+    // floor); { button: false } hides the touch button (true shows it again). Sent only when it
+    // changes.
     controls(options) {
       const text = JSON.stringify(options || {});
       if (text === lastControls) return;

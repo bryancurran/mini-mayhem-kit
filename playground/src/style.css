@@ -1868,6 +1868,59 @@ button.user-game {
   }
 }
 
+/* A packaged game's name over its opening shot (mm/hud.js title): a ribbon of the game's color
+   that sweeps in, then away when the count starts. */
+.hud-title {
+  position: absolute;
+  top: 28%;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.hud-title b {
+  max-width: calc(100vw - 32px);
+  padding: 0.12em 0.7em 0.18em;
+  background: var(--c, var(--pink));
+  border: 4px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 6px 0 var(--line);
+  font-size: clamp(32px, 7.5vw, 76px);
+  font-weight: 800;
+  line-height: 1.05;
+  text-align: center;
+  color: #fff;
+  -webkit-text-stroke: 0.07em var(--line);
+  paint-order: stroke fill;
+  text-shadow: 0 0.06em 0 var(--line);
+  transform: rotate(-2deg);
+  animation: title-in 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.hud-title.out b {
+  animation: title-out 0.35s ease-in both;
+}
+
+@keyframes title-in {
+  from {
+    transform: translateX(-60vw) rotate(-8deg);
+    opacity: 0;
+  }
+  to {
+    transform: rotate(-2deg);
+    opacity: 1;
+  }
+}
+
+@keyframes title-out {
+  to {
+    transform: translateX(60vw) rotate(4deg);
+    opacity: 0;
+  }
+}
+
 .hud-center {
   position: absolute;
   inset: 0;

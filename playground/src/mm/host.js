@@ -51,13 +51,16 @@ class ScriptedView {
     this.hud = new Hud(ctx.hudRoot, { players: this.players, hint });
     this.hud.onAction = (kind) => this.controls?.hudAction(kind);
     if (!this.isPlaying) this.hud.banner('Spectating · you’ll play next round', { style: 'info' });
-    this.turn = 0; // mm.controls({ turn }), kept for the controls once they're made
+    this.turn = 0; // mm.controls({ turn }), kept for the controls once they're made…
+    this.button = true; // …and mm.controls({ button })
     this.host = new SceneHost(this.scene, this.camera, {
       hud: this.hud,
       onBadCommand: (msg) => console.warn(`[${id}] ${msg}`),
       onControls: (o) => {
         if (Number.isInteger(o?.turn)) this.turn = ((o.turn % 4) + 4) % 4;
+        if (typeof o?.button === 'boolean') this.button = o.button;
         if (this.controls) this.controls.turn = this.turn;
+        this.controls?.showButton(this.button);
       },
     });
     // Things are drawn one tick of the rules late, gliding between ticks (see SceneHost).
@@ -158,6 +161,7 @@ class ScriptedView {
       if (this.isPlaying && !this.over) {
         this.controls = new Controls({ input: this.ctx.input, hudRoot: this.ctx.hudRoot, hud: this.hud, spec: pkg.manifest.input, clock: () => Math.floor(this.gameMs()) }); // never ahead of now, or it waits a frame
         this.controls.turn = this.turn;
+        this.controls.showButton(this.button);
       }
       this.ready = true;
     } catch (e) {
@@ -205,10 +209,22 @@ class ScriptedView {
   }
 
   countdown(T) {
+    // (Until the package is in, the lobby's word on it.)
+    const count = (this.manifest ?? MINIGAMES[this.id])?.count;
     if (T < 0) {
       const n = Math.ceil(-T);
+      // With a count, only its last seconds are counted out: before them is the game's opening,
+      // under its name.
+      if (count !== undefined && n > count) {
+        const m = this.manifest ?? MINIGAMES[this.id];
+        if (!this.titleShown && m?.name) this.hud.title(m.name, m.color);
+        this.titleShown = true;
+        this.lastCountdown = n;
+        return;
+      }
       if (n !== this.lastCountdown && n <= 5) {
         this.lastCountdown = n;
+        this.hud.title(null);
         this.hud.center(String(n), { style: 'count', ms: 850 });
         sfx.countdown();
       }
@@ -218,6 +234,7 @@ class ScriptedView {
       }
     } else if (this.lastCountdown !== 0 && this.lastCountdown !== null) {
       this.lastCountdown = 0;
+      this.hud.title(null);
       // A game can open with something of its own instead (manifest "go": false).
       if (this.manifest?.go !== false) {
         this.hud.center('GO!', { style: 'go', ms: 900 });

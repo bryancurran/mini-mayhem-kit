@@ -57,6 +57,7 @@ export class Hud {
     this.cooldownEl = null;
     this.statusEl = null;
     this.calloutEl = null;
+    this.titleEl = null;
     this.buttonLabel = 'READY'; // the cooldown meter's label: the touch button's (set by the host)
   }
 
@@ -451,6 +452,26 @@ export class Hud {
     clearTimeout(this.centerTimer);
     const keep = ms(options?.ms, 900);
     if (keep > 0) this.centerTimer = setTimeout(() => el.remove(), keep);
+  }
+
+  // The game's name over its opening shot, before the countdown's numbers (manifest "count"), on
+  // a ribbon of its color; null slides it away.
+  title(name, color) {
+    if (!name) {
+      const el = this.titleEl;
+      this.titleEl = null;
+      if (!el) return;
+      el.classList.add('out');
+      setTimeout(() => el.remove(), 400);
+      return;
+    }
+    if (this.titleEl) return;
+    const el = document.createElement('div');
+    el.className = 'hud-title';
+    if (COLOR.test(String(color))) el.style.setProperty('--c', color);
+    el.append(Object.assign(document.createElement('b'), { textContent: str(name, 40) }));
+    this.el.append(el);
+    this.titleEl = el;
   }
 
   banner(text, options = {}) {

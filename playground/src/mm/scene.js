@@ -754,6 +754,7 @@ export class SceneHost {
       throw new BadCommand(`unknown node kind "${String(kind).slice(0, 20)}"`);
     }
     n.obj.userData.mmId = id;
+    n.made = this.clock.frame; // (see update)
     this.nodes.set(id, n);
     this.scene.add(n.obj);
     this.update(n, props, true);
@@ -769,10 +770,17 @@ export class SceneHost {
       if (typeof p.scale === 'number') scale = tmpScale.setScalar(num(p.scale, 0.0001, 1e4, 1));
       else scale = tmpScale.fromArray(vec3(p.scale, [1, 1, 1]).map((v) => (Math.abs(v) < 0.0001 ? 0.0001 : v)));
     }
-    // A jump rather than a glide: new, told to, never smoothed, just shown again, or moved to
-    // another parent (where its numbers mean somewhere else).
+    // A jump rather than a glide: new, or put in place for the first time (a .set() in the frame
+    // it was made, which the view sends after making it, is part of making it; and its first
+    // position, turn or size is where it's put, not a move, or it would fly in from the middle of
+    // the world), told to, never smoothed, just shown again, or moved to another parent (where
+    // its numbers mean somewhere else).
     const reappears = p.visible !== undefined && p.visible !== false && !o.visible;
-    const jump = fresh || p.snap === true || n.smooth === false || reappears || p.parent !== undefined || !this.glideMs;
+    const first = (pos && !n.hasPos) || (quat && !n.hasRot) || (scale && !n.hasScale);
+    if (pos) n.hasPos = true;
+    if (quat) n.hasRot = true;
+    if (scale) n.hasScale = true;
+    const jump = fresh || first || n.made === this.clock.frame || p.snap === true || n.smooth === false || reappears || p.parent !== undefined || !this.glideMs;
     n.glide ??= new Glide(o);
     if (jump) {
       if (pos) n.glide.toPos.copy(pos);
