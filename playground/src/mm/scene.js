@@ -69,6 +69,9 @@ const LABEL_TONES = new Set(['good', 'great', 'bad']);
 // The vertices a game's geometry counts for against its limit (its morphs' too).
 const counted = (geo) => geo.userData.mmVertices ?? geo.attributes.position.count;
 const SOUNDS = new Set(Object.keys(sfx));
+// Synthesized sounds that are played from the sound library instead, whichever game asks for them:
+// the old chime and double whistle sounded cheap.
+const FROM_LIBRARY = { win: ['ui/confirmation-2', { volume: 0.8 }], whistle: ['retro/refereewhistle', {}] };
 // What a library sound, music or loop may be asked for with (sounds.js keeps them in range).
 const soundOptions = (o) => {
   const out = {};
@@ -547,12 +550,13 @@ function numbers(list, max, name) {
 }
 
 export class SceneHost {
-  constructor(scene, camera, { hud, onBadCommand, onControls }) {
+  constructor(scene, camera, { hud, onBadCommand, onControls, onEnd }) {
     this.scene = scene;
     this.camera = camera;
     this.hud = hud;
     this.onBadCommand = onBadCommand;
     this.onControls = onControls;
+    this.onEnd = onEnd; // mm.sound('end', won): the game's result is decided (see host.js)
     this.nodes = new Map(); // id -> { obj, kind, ownGeometry, avatar, mode, speed, label }
     this.resources = new Map(); // id -> { kind, value }
     this.shapeCache = new Map();
@@ -637,7 +641,10 @@ export class SceneHost {
         else if (op === 'burst') this.burst(a ?? {});
         else if (op === 'ripple') this.ripple(a ?? {});
         else if (op === 'sound') {
-          if (sounds++ < LIMITS.soundsPerFrame && SOUNDS.has(a)) {
+          if (a === 'end') this.onEnd?.(Array.isArray(b) && b[0] === true);
+          else if (FROM_LIBRARY[a]) {
+            if (sounds++ < LIMITS.soundsPerFrame) playSound(...FROM_LIBRARY[a]);
+          } else if (sounds++ < LIMITS.soundsPerFrame && SOUNDS.has(a)) {
             const args = (Array.isArray(b) ? b : []).slice(0, 3).filter((x) => typeof x === 'boolean' || (typeof x === 'number' && Number.isFinite(x)));
             sfx[a](...args.map((x) => (typeof x === 'number' ? Math.max(-100, Math.min(100, x)) : x)));
           } else if (sounds <= LIMITS.soundsPerFrame && typeof a === 'string' && a.includes('/')) playSound(a, soundOptions(Array.isArray(b) ? b[0] : null));

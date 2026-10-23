@@ -149,7 +149,7 @@ export function localGame(pkg, { QuickJS, ENGINE, clock = performance, log = con
       // The bots' moves, as if they'd just come in.
       const t = Math.round(this.elapsedMs);
       if (this.bots && !this.over && this.bots.due(t)) {
-        for (const [p, a] of this.bots.think(t, this.toSim.map(encode))) this.handleInput(this.ids[p], { a, t, c: ++this.botC[p] });
+        for (const [p, a, at] of this.bots.think(t, this.toSim.map(encode))) this.handleInput(this.ids[p], { a, t: at, c: ++this.botC[p] });
       }
     }
 

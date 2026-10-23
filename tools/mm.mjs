@@ -5,7 +5,7 @@
 //   npm run new <id> [-- --name "Name"]     start a game in games/<id> from the starter template
 //   npm run check <id>                       play it headless with bots: the same check uploads get
 //   npm run play [id] [-- --bots 3 --lag 100 --host]   play it in your browser against bots
-//   npm run shot <id> [-- --at 3,15,30 --phone --bots 3 --seed 7 --out dir]   screenshots of it
+//   npm run shot <id> [-- --at 3,15,30 --phone --bots 3 --seed 7 --out dir --port n]   screenshots of it
 //                                            being played (--at -2 catches the countdown)
 //   npm run pack <id>                        build dist/<id>.mm
 //   npm run login                            sign the kit in to your Mini Mosh account (once on
@@ -335,7 +335,7 @@ async function shot() {
   const outDir = path.resolve(typeof flags.out === 'string' ? flags.out : path.join(ROOT, 'shots'));
   fs.mkdirSync(outDir, { recursive: true });
   const { startPlayground } = await import('./playground.mjs');
-  const server = await startPlayground({ port: 5199, quiet: true });
+  const server = await startPlayground({ port: Number(flags.port ?? 5199), quiet: true });
   let browser;
   try {
     browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });

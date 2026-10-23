@@ -548,10 +548,6 @@ input:focus {
   box-shadow: none;
 }
 
-.state.bot {
-  background: #dff1ff;
-}
-
 .bot-kick {
   flex: none;
   width: 26px;
@@ -895,17 +891,6 @@ input:focus {
   transform: translateY(-4px);
 }
 
-.vc-band {
-  align-self: stretch;
-  height: 54px;
-  margin: 0 -16px 4px;
-  border-bottom: 3px solid var(--line);
-  background:
-    radial-gradient(circle at 20% 40%, #ffffff55 0 10px, transparent 11px),
-    radial-gradient(circle at 75% 65%, #ffffff40 0 16px, transparent 17px),
-    var(--c);
-}
-
 /* A screenshot still loading: a soft shimmer the size of the picture (like the stats' tiles),
    which the picture fades in over. */
 .shot-box {
@@ -926,8 +911,8 @@ input:focus {
   opacity: 1;
 }
 
-/* A screenshot of the game being played, across the top (a game without one has the band in its
-   color instead, as does one whose picture won't load). */
+/* A screenshot of the game being played, across the top (a game without one yet, or whose
+   picture won't load, has a picture-sized card in its color instead). */
 .vc-shot {
   align-self: stretch;
   aspect-ratio: 16 / 9;
@@ -943,8 +928,13 @@ input:focus {
   object-fit: cover;
 }
 
-.vc-shot.missing {
-  background: var(--c);
+.vc-shot.missing,
+.vc-noshot {
+  background:
+    radial-gradient(circle at 20% 35%, #ffffff55 0 10%, transparent 10.5%),
+    radial-gradient(circle at 76% 66%, #ffffff40 0 16%, transparent 16.5%),
+    radial-gradient(circle at 58% 18%, #ffffff30 0 6%, transparent 6.5%),
+    var(--c);
   animation: none;
 }
 
@@ -1096,11 +1086,6 @@ input:focus {
     padding-bottom: 8px;
   }
 
-  .vc-band {
-    height: 14px;
-    margin-bottom: 2px;
-  }
-
   /* The screenshot beside the name and what's under it, so the three cards fit on the screen. */
   .vote-card:has(.vc-shot) {
     display: grid;
@@ -1210,34 +1195,6 @@ input:focus {
   border-radius: calc(var(--radius) - 3px) calc(var(--radius) - 3px) 0 0;
 }
 
-/* A public room's next game: its rules are up until this runs out, then it starts. */
-.sc-timer {
-  height: 12px;
-  margin: 0 0 10px;
-  overflow: hidden;
-  border: 2px solid var(--line);
-  border-radius: 8px;
-  background: #ece5f4;
-}
-
-.sc-timer::after {
-  content: '';
-  display: block;
-  height: 100%;
-  background: var(--c, var(--yellow));
-  transform-origin: left;
-  animation: sc-drain var(--left) linear forwards;
-}
-
-@keyframes sc-drain {
-  from {
-    transform: scaleX(var(--from));
-  }
-  to {
-    transform: scaleX(0);
-  }
-}
-
 .showcase.starting .eyebrow {
   color: var(--ink);
 }
@@ -1279,6 +1236,36 @@ input:focus {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* A game without a screenshot yet (a new game's is taken a minute or so after it's in), or whose
+   picture won't load: a card in its color, with its name. */
+.sc-ph {
+  display: none;
+}
+
+.sc-shot.sc-noshot {
+  display: grid;
+  place-items: center;
+  padding: 0 16px;
+  border-color: var(--line);
+  animation: none;
+  background:
+    radial-gradient(circle at 18% 30%, #ffffff55 0 9%, transparent 9.5%),
+    radial-gradient(circle at 80% 68%, #ffffff40 0 14%, transparent 14.5%),
+    radial-gradient(circle at 62% 16%, #ffffff30 0 5%, transparent 5.5%),
+    var(--c);
+}
+
+.sc-noshot .sc-ph {
+  display: block;
+  font-size: clamp(26px, 6vw, 44px);
+  font-weight: 800;
+  line-height: 1.05;
+  text-align: center;
+  color: #ffffff;
+  -webkit-text-stroke: 7px var(--line);
+  paint-order: stroke fill;
 }
 
 .showcase h3 {
@@ -1628,6 +1615,38 @@ button.user-game {
   padding: 10px;
 }
 
+/* A public room's next game: its rules are up until the game's color, filling this box, has wiped
+   away (ui.js says how much is left), then it starts. White letters outlined in ink read on any
+   color and on the paper it uncovers. */
+.status-note.starting {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  font-size: 18px;
+  color: #fff;
+  -webkit-text-stroke: 5px var(--line);
+  paint-order: stroke fill;
+}
+
+.status-note.starting::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--c);
+  transform-origin: left;
+  animation: countdown-drain var(--left) linear forwards;
+}
+
+@keyframes countdown-drain {
+  from {
+    transform: scaleX(var(--from));
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
 .room-badge {
   position: fixed;
   top: 20px;
@@ -1658,6 +1677,13 @@ button.user-game {
   letter-spacing: 0.12em;
   margin-bottom: 6px;
   user-select: all;
+}
+
+/* A public room has no code: it's just Play now's. */
+.room-badge.public .room-code {
+  font-size: 32px;
+  letter-spacing: 0.01em;
+  user-select: none;
 }
 
 /* ---- 3D name tags ---------------------------------------------------------- */
@@ -3638,10 +3664,18 @@ button.user-game {
     gap: 10px;
   }
 
+  /* Their Mosh (and their coins) stays in view at the top while they scroll the shop, to see what
+     they're trying on. */
   .mosh-box {
+    position: sticky;
+    top: -20px; /* (up over the profile's padding, so nothing shows above it) */
+    z-index: 2;
     flex-direction: row;
     justify-content: center;
     gap: 12px;
+    padding-bottom: 6px;
+    background: #fffdf7;
+    box-shadow: 0 8px 10px #fffdf7;
   }
 
   .mosh-preview {
@@ -3679,6 +3713,25 @@ button.user-game {
     bottom: 0;
     z-index: 1;
     box-shadow: 0 -8px 10px #fffdf7;
+  }
+}
+
+/* A short phone: a smaller Mosh up top, to leave room for the shop under it. */
+@media (max-width: 640px) and (max-height: 720px) {
+  .mosh-preview {
+    width: 120px;
+    height: 152px;
+  }
+}
+
+/* A narrow phone: the Buy button under what it's for, which keeps the bar at the bottom short. */
+@media (max-width: 400px) {
+  .shop-bar {
+    flex-wrap: wrap;
+  }
+
+  .shop-bar .btn {
+    margin-left: auto;
   }
 }
 
@@ -4798,6 +4851,10 @@ body:has(.tap-controls) .race-top {
     font-size: 34px;
     margin: 0;
     flex: 1;
+  }
+
+  .room-badge.public .room-code {
+    font-size: 24px;
   }
 
   .hud-top {

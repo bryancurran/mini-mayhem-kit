@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { cleanOutfit } from '../../shared/cosmetics.js';
+import { Effect } from './effects.js';
 import { toon } from './gfx.js';
 import { makeItem } from './outfits.js';
 
@@ -70,6 +71,10 @@ export const outfitFor = (color) => roomOutfits.get(color) ?? [];
 const ANTENNA_Y = 1.28; // the stalk's middle (it's 0.32 long), with the bobble on top
 const BOBBLE_Y = 1.46;
 const CROWN_Y = 1.07;
+const damp = (current, target, rate, dt) => current + (target - current) * (1 - Math.exp(-rate * dt));
+const at = new THREE.Vector3();
+const turn = new THREE.Quaternion();
+const size = new THREE.Vector3();
 
 export class Avatar {
   // outfit: the cosmetics it wears (shared/cosmetics.js); by default, whatever the room's player
@@ -135,9 +140,23 @@ export class Avatar {
     this.torso.add(this.crown);
 
     this.time = Math.random() * 10;
+    this.stride = 0; // where the running feet are in their stride (see update)
     this.mode = 'idle';
     this.speed = 0;
-    this.worn = new Map(); // slot -> { id, obj, lift, animate }
+    // Where it is in the world and how it's moving, for what it leaves behind (effects.js) and a
+    // buddy trailing along: moved this frame, its velocity (smoothed), that in its own space (the
+    // way it faces, at its size), and its size.
+    this.world = new THREE.Vector3();
+    this.moved = new THREE.Vector3();
+    this.velocity = new THREE.Vector3();
+    this.localVelocity = new THREE.Vector3();
+    this.worldScale = 1;
+    this.placed = false;
+    // Running on the spot (the profile's stand): the velocity it pretends to have, and how far round
+    // it the ground shows (a trail shrinks away past there).
+    this.treadmill = null;
+    this.treadmillRadius = 0;
+    this.worn = new Map(); // slot -> { id, obj, lift, animate, effect }
     this.setOutfit(outfit);
   }
 
@@ -158,17 +177,22 @@ export class Avatar {
       if (ids.includes(w.id)) continue;
       w.obj?.removeFromParent();
       w.feet?.forEach((shoe) => shoe.removeFromParent());
+      w.effect?.stop();
       this.worn.delete(slot);
     }
     for (const id of ids) {
       if ([...this.worn.values()].some((w) => w.id === id)) continue;
       const item = makeItem(id);
       if (!item) continue;
-      if (item.obj) this.torso.add(item.obj);
+      // (A buddy floats beside it, not on its body, which squashes and bounces.)
+      if (item.obj) (item.rig ? this.rig : this.torso).add(item.obj);
       item.feet?.forEach((shoe, i) => this.feet[i].add(shoe)); // shoes go on the feet, to walk with them
       if (item.fit) item.obj.traverse((o) => o.material?.userData.stalk && (o.material = this.darkMat)); // an antenna's stalks, like its own
-      this.worn.set(item.slot, { id, ...item });
+      this.worn.set(item.slot, { id, ...item, effect: item.effect ? new Effect(this, item.effect) : null });
     }
+    // (Only a buddy, or something it leaves behind, needs to know where it is and how it's moving.)
+    this.tracked = [...this.worn.values()].some((w) => w.effect || w.rig);
+    if (!this.tracked) this.placed = false;
     // An antenna from the shop takes the place of its own, and dark glasses hide its eyes.
     const own = !this.worn.has('antenna');
     this.stalk.visible = own;
@@ -234,8 +258,10 @@ export class Avatar {
       if (mode === 'cheer') torso.rotation.y = Math.sin(t * 4) * 0.4;
       this.bobble.position.x = Math.sin(t * rate) * 0.08;
     } else if (mode === 'run') {
-      const rate = 8 + Math.min(speed, 12);
-      const s = Math.sin(t * rate);
+      // (The stride moves on by the pace each frame, rather than being the time times the pace:
+      // a pace that changes from frame to frame, as a rolling ball's does, made the feet jump.)
+      this.stride += dt * (8 + Math.min(speed, 12));
+      const s = Math.sin(this.stride);
       lf.position.z += s * 0.18;
       rf.position.z -= s * 0.18;
       lf.position.y += Math.max(0, s) * 0.1;
@@ -292,11 +318,36 @@ export class Avatar {
       rh.position.y -= 0.12;
     }
 
-    for (const w of this.worn.values()) w.animate?.(w.obj, this, dt, speed);
+    this.track(dt);
+    for (const w of this.worn.values()) {
+      w.animate?.(w.obj, this, dt, speed, w);
+      w.effect?.make(dt);
+    }
+  }
+
+  // Where it's got to since last time, and how fast it's going.
+  track(dt) {
+    if (!dt || !this.tracked) return;
+    this.group.updateWorldMatrix(true, false);
+    this.group.matrixWorld.decompose(at, turn, size);
+    this.worldScale = size.x || 1;
+    this.moved.set(0, 0, 0);
+    if (this.treadmill) this.moved.copy(this.treadmill).multiplyScalar(dt);
+    else if (this.placed) {
+      this.moved.subVectors(at, this.world);
+      if (this.moved.length() > 4 * this.worldScale) this.moved.set(0, 0, 0); // put somewhere else, not moved
+    }
+    this.world.copy(at);
+    this.placed = true;
+    this.velocity.x = damp(this.velocity.x, this.moved.x / dt, 10, dt);
+    this.velocity.y = damp(this.velocity.y, this.moved.y / dt, 10, dt);
+    this.velocity.z = damp(this.velocity.z, this.moved.z / dt, 10, dt);
+    this.localVelocity.copy(this.velocity).applyQuaternion(turn.invert()).divideScalar(this.worldScale);
   }
 
   dispose() {
     this.bodyMat.dispose();
     this.darkMat.dispose();
+    for (const w of this.worn.values()) w.effect?.stop();
   }
 }

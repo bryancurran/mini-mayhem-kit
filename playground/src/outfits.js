@@ -15,7 +15,12 @@ import { noOutline, toon } from './gfx.js';
 // Head things say how much taller the antenna grows to poke out of their top (lift): it always
 // shows. The crown (the host's, the leader's) sits on top of them: crowned, where it sits and how
 // much the antenna grows to clear it too. Things that move (a cape, wings) have
-// animate(obj, avatar, dt, speed).
+// animate(obj, avatar, dt, speed, worn) (worn: what avatar.js keeps of it, with a pair of shoes'
+// feet).
+//
+// A buddy (rig: true) floats beside the Mosh instead, built in the space it stands in (its feet at
+// the origin), so it doesn't squash and bounce with its body. Trails and celebrations (effect)
+// aren't built on the Mosh at all: their marks are left in the world (effects.js has the spec).
 //
 // Antennas (antenna: true) take the place of the Mosh's own: one or more masts rising from the top
 // of the head, each a stem with something on top, starting at base. They're made of what its own
@@ -70,7 +75,7 @@ class Parts {
 
   done() {
     for (const [material, geometries] of this.byMaterial) {
-      const mesh = new THREE.Mesh(shared(mergeGeometries(geometries.map((g) => g.toNonIndexed()))), material);
+      const mesh = new THREE.Mesh(shared(mergeGeometries(geometries.map((g) => (g.index ? g.toNonIndexed() : g)))), material);
       mesh.castShadow = true;
       this.parent.add(mesh);
       for (const g of geometries) g.dispose();
@@ -181,6 +186,160 @@ class Coil extends THREE.Curve {
     return target.set(Math.cos(a) * r, t * this.height, Math.sin(a) * r);
   }
 }
+
+// A horn: a cone so long and wide at its base (at the origin, pointing up), curving round
+// towards -x by bend radians along its length.
+function horn(length, radius, bend) {
+  const geometry = new THREE.ConeGeometry(radius, length, 14, 12).translate(0, length / 2, 0);
+  const r0 = length / bend;
+  const pos = geometry.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const r = r0 + pos.getX(i); // from the middle of the bend, at (-r0, 0)
+    const a = pos.getY(i) / r0;
+    pos.setXY(i, -r0 + r * Math.cos(a), r * Math.sin(a));
+  }
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+// A ring round the body, out from it by out, at y front at the front and back at the back (higher
+// at the back, like a collar, so it clears the face and the hands). A point on it at angle a round
+// from the front, and the way out from the body there.
+function collar(front, back, out) {
+  return (a) => {
+    const y = (front + back) / 2 + ((front - back) / 2) * Math.cos(a);
+    const r = radiusAt(y) + out;
+    return new THREE.Vector3(Math.sin(a) * r, y, Math.cos(a) * r * (BODY.z / BODY.x));
+  };
+}
+const collarCurve = (around, from, to, n = 24) =>
+  new THREE.CatmullRomCurve3(Array.from({ length: n + 1 }, (_, i) => around(from + ((to - from) * i) / n)));
+
+// A flat band along a curve that runs round the body (a scarf): so tall up and down, and so thick
+// out from the body. (A tube, squashed.)
+function band(curve, segments, tall, thick) {
+  const sides = 12;
+  const geometry = new THREE.TubeGeometry(curve, segments, 1, sides, false);
+  const pos = geometry.attributes.position;
+  const middle = new THREE.Vector3();
+  const v = new THREE.Vector3();
+  for (let i = 0; i <= segments; i++) {
+    curve.getPointAt(i / segments, middle);
+    for (let j = 0; j <= sides; j++) {
+      const k = i * (sides + 1) + j;
+      v.fromBufferAttribute(pos, k).sub(middle);
+      pos.setXYZ(k, middle.x + v.x * thick, middle.y + v.y * tall, middle.z + v.z * thick);
+    }
+  }
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+// A heart about 1 across, its middle at the origin, facing front.
+function heartShape() {
+  const s = new THREE.Shape();
+  s.moveTo(0, -0.42);
+  s.bezierCurveTo(-0.08, -0.32, -0.5, -0.08, -0.5, 0.16);
+  s.bezierCurveTo(-0.5, 0.42, -0.2, 0.5, 0, 0.26);
+  s.bezierCurveTo(0.2, 0.5, 0.5, 0.42, 0.5, 0.16);
+  s.bezierCurveTo(0.5, -0.08, 0.08, -0.32, 0, -0.42);
+  return s;
+}
+
+// A star with points, so wide at its points and in its notches, one point up, facing front.
+function starShape(points, outer, inner, round = 0.015) {
+  return rounded(
+    Array.from({ length: points * 2 }, (_, i) => {
+      const a = (i / (points * 2)) * Math.PI * 2;
+      const r = i % 2 ? inner : outer;
+      return [Math.sin(a) * r, Math.cos(a) * r, round];
+    }),
+  );
+}
+
+// Buddies float here beside its head, a little behind, and bob about.
+const BUDDY_AT = new THREE.Vector3(0.68, 1.5, -0.32);
+
+// A buddy (built in a group named body, inside one named buddy, its wings named wing) bobs at its
+// own pace, trails behind as the Mosh runs (and drops back down after a jump), leans into it, and
+// flaps its wings (if it has any) flap times a second.
+function floatBuddy({ bob = 0.06, rate = 2.4, flap = 0, sway = 0.12 } = {}) {
+  return (obj, avatar, dt) => {
+    const b = (obj.userData.buddy ??= {
+      buddy: obj.getObjectByName('buddy'),
+      body: obj.getObjectByName('body'),
+      wings: [],
+      want: new THREE.Vector3(),
+    });
+    if (!b.wings.length) obj.traverse((o) => o.name === 'wing' && b.wings.push(o));
+    const t = avatar.time;
+    const v = avatar.localVelocity;
+    // Left behind by however fast it's going (not too far), and a little lower when it's asleep.
+    const lag = Math.min(1, Math.hypot(v.x, v.z) / 12);
+    b.want.set(BUDDY_AT.x - v.x * 0.03, BUDDY_AT.y - THREE.MathUtils.clamp(v.y * 0.04, -0.3, 0.3) - (avatar.mode === 'sleep' ? 0.35 : 0), BUDDY_AT.z - lag * 0.55);
+    b.buddy.position.x = damp(b.buddy.position.x, b.want.x, 5, dt);
+    b.buddy.position.y = damp(b.buddy.position.y, b.want.y, 5, dt);
+    b.buddy.position.z = damp(b.buddy.position.z, b.want.z, 5, dt);
+    b.body.position.y = Math.sin(t * rate) * bob;
+    b.body.rotation.z = Math.sin(t * rate * 0.5) * sway;
+    b.body.rotation.x = damp(b.body.rotation.x, lag * 0.45, 6, dt);
+    const happy = avatar.mode === 'happy' || avatar.mode === 'cheer';
+    if (happy) b.body.position.y += Math.abs(Math.sin(t * 6.5)) * 0.12;
+    const beat = Math.sin(t * flap * Math.PI * 2) * (avatar.mode === 'sleep' ? 0.15 : 0.6);
+    for (const w of b.wings) w.rotation.z = w.userData.side * (w.userData.rest + beat);
+  };
+}
+
+// A wing for a buddy: a group (named wing) at, holding a flat oval so long and wide out to that
+// side, resting at rest radians.
+function buddyWing(parent, side, at, { long, wide, material, rest = 0.3 }) {
+  const wing = new THREE.Group();
+  wing.name = 'wing';
+  wing.position.set(...at);
+  wing.userData = { side, rest };
+  parent.add(wing);
+  new Parts(wing).add(new THREE.SphereGeometry(1, 14, 8), material, { at: [side * long * 0.9, 0, 0], scale: [long, 0.012, wide] }).done();
+  return wing;
+}
+
+// Effects' looks are made the first time someone wears one.
+const basic = (color, extra) => shared(noOutline(new THREE.MeshBasicMaterial({ color, ...extra })));
+const flat = (color, extra) => shared(noOutline(toon(color, extra)));
+const geo = (g) => shared(g);
+const pick = (list) => list[Math.floor(Math.random() * list.length)];
+
+// A bubble: see-through, more so face on, its edge bright and catching the light.
+function bubbleMaterial() {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    uniforms: { tint: { value: new THREE.Color('#6fc8ff') } },
+    vertexShader: `
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        vec4 at = vec4(position, 1.0);
+        vec3 n = normal;
+        #ifdef USE_INSTANCING
+          at = instanceMatrix * at;
+          n = mat3(instanceMatrix) * n;
+        #endif
+        vec4 view = modelViewMatrix * at;
+        vNormal = normalize(normalMatrix * n);
+        vView = normalize(-view.xyz);
+        gl_Position = projectionMatrix * view;
+      }`,
+    fragmentShader: `
+      uniform vec3 tint;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        float edge = 1.0 - abs(dot(normalize(vNormal), normalize(vView)));
+        gl_FragColor = vec4(mix(tint, vec3(1.0), pow(edge, 4.0) * 0.7), 0.1 + pow(edge, 2.2) * 0.85);
+      }`,
+  });
+}
+const spread = (n) => (Math.random() * 2 - 1) * n;
 
 const ITEMS = {
   spring: {
@@ -579,6 +738,656 @@ const ITEMS = {
       right.rotation.z = flap;
     },
   },
+
+  propeller: {
+    antenna: true,
+    base: ANTENNA_BASE + 0.26 - 0.03, // its hub, on top of the stem
+    build(g) {
+      const top = mast(g, { stem: 0.26 });
+      new Parts(top).add(new THREE.SphereGeometry(0.05, 12, 8), bobbleGold, { at: [0, 0.02, 0] }).done();
+      // Three blades, red, yellow and blue, pitched like a real propeller's.
+      const blades = new THREE.Group();
+      blades.name = 'blades';
+      blades.position.y = 0.06;
+      top.add(blades);
+      const p = new Parts(blades);
+      ['#ff4d5e', '#ffd23d', '#3d8bff'].forEach((color, i) => {
+        const blade = new THREE.SphereGeometry(1, 16, 8).scale(0.17, 0.016, 0.055).translate(0.18, 0, 0).rotateX(0.35).rotateY((i / 3) * Math.PI * 2);
+        p.add(blade, mat(color));
+      });
+      p.add(new THREE.CylinderGeometry(0.035, 0.035, 0.05, 12), bobbleGold);
+      p.done();
+    },
+    // Lazily round standing about, faster as it runs, whirring when it jumps or hops for joy.
+    animate(obj, avatar, dt, speed) {
+      swayMasts(obj, avatar, dt, speed);
+      const blades = (obj.userData.blades ??= obj.getObjectByName('blades'));
+      const mode = avatar.mode;
+      const want = mode === 'run' ? 10 + Math.min(speed, 12) * 1.5 : mode === 'jump' || mode === 'fall' ? 32 : mode === 'happy' || mode === 'cheer' ? 20 : mode === 'sleep' ? 0.5 : 3;
+      obj.userData.whirr = damp(obj.userData.whirr ?? want, want, 3, dt);
+      blades.rotation.y += obj.userData.whirr * dt;
+    },
+  },
+
+  daisy: {
+    antenna: true,
+    base: ANTENNA_BASE + 0.3 - 0.14, // its lowest petals, on a bit of stem
+    build(g) {
+      const top = mast(g, { stem: 0.3 });
+      // Facing front, tipped up a little, on the end of the stem, with a leaf just below it.
+      const flower = new THREE.Group();
+      flower.name = 'flower';
+      flower.position.y = 0.04;
+      flower.rotation.x = -0.3;
+      top.add(flower);
+      const p = new Parts(flower);
+      const petal = mat('#ffffff');
+      for (let i = 0; i < 11; i++) {
+        const a = (i / 11) * Math.PI * 2;
+        p.add(new THREE.SphereGeometry(1, 10, 6), petal, { at: [Math.sin(a) * 0.1, Math.cos(a) * 0.1, 0], rot: [0, 0, -a], scale: [0.036, 0.075, 0.016] });
+      }
+      p.add(new THREE.SphereGeometry(0.055, 14, 10), mat('#ffc61a', { emissive: new THREE.Color('#4a3000') }), { at: [0, 0, 0.015], scale: [1, 1, 0.55] });
+      p.done();
+      new Parts(top).add(new THREE.SphereGeometry(1, 10, 6), mat('#4cbf5a'), { at: [0.055, -0.13, 0], rot: [0, 0, -0.9], scale: [0.05, 0.02, 0.03] }).done();
+    },
+    // It nods along.
+    animate(obj, avatar, dt, speed) {
+      swayMasts(obj, avatar, dt, speed);
+      const flower = (obj.userData.flower ??= obj.getObjectByName('flower'));
+      const t = avatar.time;
+      const rate = avatar.mode === 'run' ? 9 : avatar.mode === 'happy' || avatar.mode === 'cheer' ? 6.5 : 1.6;
+      flower.rotation.z = Math.sin(t * rate) * 0.18;
+    },
+  },
+
+  partyhat: {
+    lift: 0.3, // the antenna pokes out of its tip, the bobble a pom-pom
+    top: 1.68,
+    crowned: { at: 1.07, lift: 0.3 }, // the crown round its brim
+    build(g) {
+      const paper = mat('#ff5fa2', { side: THREE.DoubleSide });
+      const dot = mat('#ffd23d');
+      const hat = new THREE.Group();
+      hat.position.set(0, 1.1, 0); // where the head is as wide as its brim
+      hat.rotation.z = -0.05;
+      g.add(hat);
+      const p = new Parts(hat);
+      const tall = 0.56;
+      const wide = 0.27;
+      p.add(new THREE.ConeGeometry(wide, tall, 32, 1, true), paper, { at: [0, tall / 2, 0] });
+      // Polka dots, flat on the cone.
+      const slope = Math.atan(wide / tall);
+      [
+        [0.08, 7, 0],
+        [0.22, 6, 0.5],
+        [0.36, 4, 0.2],
+      ].forEach(([y, n, turn]) => {
+        const r = wide * (1 - y / tall) + 0.004;
+        for (let i = 0; i < n; i++) {
+          const a = ((i + turn) / n) * Math.PI * 2;
+          p.add(new THREE.SphereGeometry(1, 10, 6).scale(0.034, 0.034, 0.01).rotateX(-slope).translate(0, 0, r).rotateY(a).translate(0, y, 0), dot);
+        }
+      });
+      // A ruffle round the brim.
+      const ruffle = new THREE.TorusGeometry(wide, 0.035, 8, 48).rotateX(Math.PI / 2);
+      const pos = ruffle.attributes.position;
+      for (let i = 0; i < pos.count; i++) pos.setY(i, pos.getY(i) + Math.sin(Math.atan2(pos.getZ(i), pos.getX(i)) * 12) * 0.012);
+      ruffle.computeVertexNormals();
+      p.add(ruffle, mat('#ffffff'), { at: [0, 0.01, 0] });
+      p.done();
+    },
+  },
+
+  viking: {
+    lift: 0.1,
+    top: 1.46,
+    crowned: { at: 1.33, lift: 0.2 },
+    build(g) {
+      const steel = mat('#aab4c3');
+      const bronze = mat('#c98b3a');
+      const ivory = mat('#f3e6c4');
+      const p = new Parts(g);
+      const [shape, place] = dome(0.98, 0.5, 0.45);
+      p.add(shape, steel, place);
+      // A riveted band round the bottom, and a ridge over the top from front to back.
+      p.add(new THREE.TorusGeometry(0.5, 0.05, 8, 40).rotateX(Math.PI / 2), bronze, { at: [0, 0.99, 0], scale: [1, 1, 0.95] });
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        p.add(new THREE.SphereGeometry(0.026, 8, 6), steel, { at: [Math.sin(a) * 0.548, 0.99, Math.cos(a) * 0.548 * 0.95] });
+      }
+      p.add(new THREE.TorusGeometry(1, 0.075, 6, 24, Math.PI).rotateY(Math.PI / 2), bronze, place);
+      // Horns out of each side, curving up, with a bronze ring where they meet the helmet.
+      for (const side of [-1, 1]) {
+        const geometry = horn(0.42, 0.075, 1.5).rotateZ(-Math.PI / 2);
+        if (side < 0) geometry.rotateY(Math.PI);
+        p.add(geometry, ivory, { at: [side * 0.4, 1.2, 0] });
+        p.add(new THREE.TorusGeometry(0.075, 0.025, 6, 16).rotateY(Math.PI / 2), bronze, { at: [side * 0.42, 1.2, 0] });
+      }
+      p.done();
+    },
+  },
+
+  mustache: {
+    build(g) {
+      const hair = mat('#4a2c1d');
+      const p = new Parts(g);
+      // From under the nose out along the face, curling up at the ends, getting thinner as it goes:
+      // a string of blobs (between the eyes and the cheeks, clear of both).
+      for (const side of [-1, 1]) {
+        const curve = new THREE.CatmullRomCurve3(
+          [
+            [0.0, 0.5, 0.625],
+            [0.1, 0.485, 0.61],
+            [0.2, 0.48, 0.585],
+            [0.28, 0.505, 0.555],
+            [0.31, 0.55, 0.54],
+            [0.275, 0.58, 0.555],
+          ].map(([x, y, z]) => new THREE.Vector3(side * x, y, z)),
+        );
+        const n = 16;
+        for (let i = 0; i <= n; i++) {
+          const t = i / n;
+          const r = 0.052 * (1 - t) + 0.016;
+          p.add(new THREE.SphereGeometry(1, 10, 8), hair, { at: curve.getPoint(t).toArray(), scale: [r, r * 0.8, r * 0.7] });
+        }
+      }
+      p.done();
+    },
+  },
+
+  starspecs: {
+    build(g) {
+      const frame = mat('#ff4fa3');
+      const lens = shared(noOutline(new THREE.MeshBasicMaterial({ color: '#ff9fd0', transparent: true, opacity: 0.22, depthWrite: false })));
+      const p = new Parts(g);
+      for (const side of [-1, 1]) {
+        // A star round each eye, its inner points meeting over the nose, with a hole the eye shows through.
+        const place = new THREE.Matrix4().compose(
+          new THREE.Vector3(side * 0.215, 0.775, 0.61),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(0, side * 0.2, 0)),
+          new THREE.Vector3(1, 1, 1),
+        );
+        const star = starShape(5, 0.27, 0.19, 0.03);
+        star.holes.push(new THREE.Path().absellipse(0, 0, 0.14, 0.17, 0, Math.PI * 2, false, 0));
+        p.add(new THREE.ExtrudeGeometry(star, { depth: 0.035, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 2, curveSegments: 8 }).translate(0, 0, -0.02).applyMatrix4(place), frame);
+        const glass = new THREE.Shape().absellipse(0, 0, 0.15, 0.18, 0, Math.PI * 2, false, 0);
+        p.add(new THREE.ShapeGeometry(glass, 16).translate(0, 0, -0.01).applyMatrix4(place), lens);
+        // The arm, back to the ear.
+        p.bar(new THREE.Vector3(side * 0.24, 0.07, -0.01).applyMatrix4(place).toArray(), [side * 0.575, 0.86, 0.12], 0.022, frame);
+      }
+      p.done();
+      g.traverse((o) => o.material === lens && (o.castShadow = false));
+    },
+  },
+
+  scarf: {
+    build(g) {
+      const red = mat('#e63950');
+      const cream = mat('#fdf0d5');
+      const around = collar(0.38, 0.9, 0.035);
+      const p = new Parts(g);
+      // A knitted band round the neck, in stripes.
+      const n = 16;
+      for (let i = 0; i < n; i++) {
+        const a0 = (i / n) * Math.PI * 2;
+        const a1 = ((i + 1) / n) * Math.PI * 2;
+        p.add(band(collarCurve(around, a0, a1, 6), 8, 0.075, 0.04), i % 2 ? cream : red);
+      }
+      // The knot, at the front on one side.
+      const knotAt = around(-0.55);
+      p.add(new THREE.SphereGeometry(0.085, 12, 10), red, { at: knotAt.toArray() });
+      p.done();
+      // Its two ends hang from the knot, and fly out behind when it runs.
+      const ends = new THREE.Group();
+      ends.name = 'ends';
+      ends.position.copy(knotAt);
+      ends.rotation.y = -0.55;
+      g.add(ends);
+      const q = new Parts(ends);
+      [
+        [-0.05, 0.1, 0.33],
+        [0.06, -0.12, 0.27],
+      ].forEach(([x, tilt, long]) => {
+        for (let k = 0; k < 3; k++) {
+          const piece = long / 3;
+          q.add(new THREE.BoxGeometry(0.12, piece, 0.035), k % 2 ? cream : red, { at: [x + Math.sin(tilt) * piece * (k + 0.5), -Math.cos(tilt) * piece * (k + 0.5), 0.04], rot: [0, 0, tilt] });
+        }
+      });
+      q.done();
+    },
+    // They flap out from its front in the wind as it runs, and fly up when it jumps.
+    animate(obj, avatar, dt, speed) {
+      const ends = (obj.userData.ends ??= obj.getObjectByName('ends'));
+      const t = avatar.time;
+      let lift = -0.08 + Math.sin(t * 2) * 0.03;
+      if (avatar.mode === 'run') lift = -0.3 - Math.min(speed, 10) * 0.03 + Math.sin(t * 14) * 0.1;
+      else if (avatar.mode === 'jump') lift = -0.65;
+      else if (avatar.mode === 'fall') lift = -0.9 + Math.sin(t * 20) * 0.2;
+      else if (avatar.mode === 'happy' || avatar.mode === 'cheer') lift = -0.2 + Math.sin(t * 9) * 0.2;
+      ends.rotation.x = damp(ends.rotation.x, lift, 10, dt);
+    },
+  },
+
+  lei: {
+    build(g) {
+      const around = collar(0.36, 0.82, 0.04);
+      const colors = ['#ff5fa2', '#ffd23d', '#ffffff', '#ff9f43', '#b57bff'].map((c) => mat(c));
+      const middle = mat('#ffc61a', { emissive: new THREE.Color('#4a3000') });
+      const leaf = mat('#3fae55');
+      const p = new Parts(g);
+      // Flowers all the way round, facing out, with a leaf between each.
+      const n = 16;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        const at = around(a);
+        const face = (geometry) => geometry.rotateX(-0.35).rotateY(a).translate(at.x, at.y, at.z);
+        for (let k = 0; k < 5; k++) {
+          const b = (k / 5) * Math.PI * 2;
+          p.add(face(new THREE.SphereGeometry(1, 8, 6).scale(0.045, 0.045, 0.02).translate(Math.cos(b) * 0.045, Math.sin(b) * 0.045, 0.02)), colors[i % colors.length]);
+        }
+        p.add(face(new THREE.SphereGeometry(0.025, 8, 6).translate(0, 0, 0.035)), middle);
+        const between = around(a + Math.PI / n);
+        p.add(new THREE.SphereGeometry(1, 8, 6).scale(0.05, 0.022, 0.03).rotateZ(0.6).rotateY(a + Math.PI / n), leaf, { at: between.toArray() });
+      }
+      p.done();
+    },
+  },
+
+  tutu: {
+    build(g) {
+      const p = new Parts(g);
+      // Two layers of frilly net flaring out round the bottom of the body (a long dark one, a
+      // short light one over it), clear of its hands, and a band round its waist.
+      [
+        ['#ff8cc6', 0.26, 0.57, 0.06, 0.88, 15],
+        ['#ffc6e3', 0.28, 0.58, 0.15, 0.8, 12],
+      ].forEach(([color, top, topR, bottom, bottomR, waves]) => {
+        const tall = top - bottom;
+        const net = new THREE.CylinderGeometry(topR, bottomR, tall, 64, 3, true);
+        const pos = net.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const down = 0.5 - pos.getY(i) / tall; // 0 at the waist, 1 at the hem
+          const ripple = Math.sin(Math.atan2(pos.getX(i), pos.getZ(i)) * waves);
+          const grow = 1 + ripple * 0.07 * down;
+          pos.setXYZ(i, pos.getX(i) * grow, pos.getY(i) + ripple * 0.025 * down, pos.getZ(i) * grow);
+        }
+        net.computeVertexNormals();
+        p.add(net, mat(color, { side: THREE.DoubleSide }), { at: [0, bottom + tall / 2, 0], scale: [1, 1, BODY.z / BODY.x] });
+      });
+      p.add(new THREE.TorusGeometry(radiusAt(0.28) + 0.015, 0.03, 8, 48).rotateX(Math.PI / 2), mat('#ff5fa2'), { at: [0, 0.28, 0], scale: [1, 1, BODY.z / BODY.x] });
+      p.done();
+    },
+  },
+
+  jetpack: {
+    build(g) {
+      const metal = mat('#c9d1dc', { emissive: new THREE.Color('#1c2028') });
+      const red = mat('#ff4d5e');
+      const dark = mat('#3a3346');
+      const p = new Parts(g);
+      // Two tanks on a plate on its back, red noses up top and nozzles underneath.
+      p.add(new THREE.BoxGeometry(0.3, 0.4, 0.08), dark, { at: [0, 0.56, -0.6] });
+      for (const side of [-1, 1]) {
+        const x = side * 0.165;
+        p.add(new THREE.CylinderGeometry(0.1, 0.1, 0.4, 20), metal, { at: [x, 0.56, -0.68] });
+        p.add(new THREE.ConeGeometry(0.1, 0.17, 20), red, { at: [x, 0.845, -0.68] });
+        p.add(new THREE.TorusGeometry(0.1, 0.018, 6, 20).rotateX(Math.PI / 2), dark, { at: [x, 0.7, -0.68] });
+        p.add(new THREE.CylinderGeometry(0.055, 0.085, 0.08, 16), dark, { at: [x, 0.32, -0.68] });
+      }
+      p.done();
+      // Flames out of the nozzles (animate says how big).
+      const outer = shared(noOutline(new THREE.MeshBasicMaterial({ color: '#ff8a1f' })));
+      const inner = shared(noOutline(new THREE.MeshBasicMaterial({ color: '#fff27a' })));
+      for (const side of [-1, 1]) {
+        const flame = new THREE.Group();
+        flame.name = 'flame';
+        flame.position.set(side * 0.165, 0.28, -0.68);
+        g.add(flame);
+        new Parts(flame)
+          .add(new THREE.ConeGeometry(0.068, 0.32, 12).rotateX(Math.PI), outer, { at: [0, -0.16, 0] })
+          .add(new THREE.ConeGeometry(0.04, 0.2, 10).rotateX(Math.PI), inner, { at: [0, -0.1, 0] })
+          .done();
+        flame.traverse((o) => (o.castShadow = false));
+      }
+    },
+    // A flicker standing about, more as it runs, and a roar when it jumps.
+    animate(obj, avatar, dt, speed) {
+      const flames = (obj.userData.flames ??= obj.children.filter((o) => o.name === 'flame'));
+      const mode = avatar.mode;
+      const want = mode === 'jump' || mode === 'fall' ? 1.35 : mode === 'run' ? 0.5 + Math.min(speed, 10) * 0.04 : mode === 'happy' || mode === 'cheer' ? 0.8 : mode === 'sleep' ? 0 : 0.22;
+      obj.userData.power = damp(obj.userData.power ?? want, want, 10, dt);
+      const power = obj.userData.power;
+      const t = avatar.time;
+      flames.forEach((flame, i) => {
+        const flicker = 1 + Math.sin(t * 41 + i * 2) * 0.12 + Math.sin(t * 67 + i) * 0.08;
+        flame.scale.set(0.75 + power * 0.25, Math.max(0.001, power * flicker), 0.75 + power * 0.25);
+        flame.visible = power > 0.02;
+      });
+    },
+  },
+
+  skates: {
+    feet: true,
+    build(g, side) {
+      const boot = mat('#f4f1ea');
+      const trim = mat('#2ec7c0');
+      const plate = mat('#8a93a6');
+      const p = new Parts(g);
+      // A white boot over the foot with a teal cuff and laces, on a plate.
+      p.add(new THREE.SphereGeometry(1, 24, 14), boot, { at: [0, 0.008, 0.008], scale: [FOOT.x + 0.018, FOOT.y + 0.02, FOOT.z + 0.022] });
+      p.add(new THREE.TorusGeometry(1, 0.2, 8, 28).rotateX(Math.PI / 2), trim, { at: [0, 0.075, -0.02], scale: [0.16, 0.12, 0.21] });
+      for (const z of [0.05, 0.11, 0.17]) {
+        const around = Math.sqrt(1 - (z / (FOOT.z + 0.022)) ** 2);
+        p.bar([-0.07, (FOOT.y + 0.02) * around * 0.9, z], [0.07, (FOOT.y + 0.02) * around * 0.9, z], 0.012, trim);
+      }
+      p.add(new THREE.BoxGeometry(0.2, 0.03, 0.48), plate, { at: [0, -0.1, 0.01] });
+      // A rubber stopper on the toe.
+      p.add(new THREE.CylinderGeometry(0.045, 0.05, 0.06, 12), trim, { at: [0, -0.09, 0.27], rot: [0.5, 0, 0] });
+      p.done();
+      // Four wheels (each its own, to spin).
+      const tyre = mat('#ff5fa2');
+      const hub = mat('#ffd23d');
+      for (const z of [0.15, -0.14]) {
+        for (const x of [-0.1, 0.1]) {
+          const wheel = new THREE.Group();
+          wheel.name = 'wheel';
+          wheel.position.set(x, -0.13, z);
+          g.add(wheel);
+          new Parts(wheel)
+            .add(new THREE.CylinderGeometry(0.05, 0.05, 0.05, 16).rotateZ(Math.PI / 2), tyre)
+            .add(new THREE.CylinderGeometry(0.022, 0.022, 0.056, 10).rotateZ(Math.PI / 2), hub)
+            .add(new THREE.BoxGeometry(0.058, 0.012, 0.03), hub) // (so you can see them turn)
+            .done();
+        }
+      }
+    },
+    // The wheels turn as it runs.
+    animate(obj, avatar, dt, speed, worn) {
+      const wheels = (worn.wheels ??= worn.feet.flatMap((shoe) => {
+        const found = [];
+        shoe.traverse((o) => o.name === 'wheel' && found.push(o));
+        return found;
+      }));
+      const turn = avatar.mode === 'run' ? (Math.max(speed, 4) / 0.05) * dt : 0;
+      for (const w of wheels) w.rotation.x += turn;
+    },
+  },
+
+  bee: {
+    rig: true,
+    build(g) {
+      const buddy = new THREE.Group();
+      buddy.name = 'buddy';
+      buddy.position.copy(BUDDY_AT);
+      g.add(buddy);
+      const body = new THREE.Group();
+      body.name = 'body';
+      buddy.add(body);
+      const yellow = mat('#ffcf33');
+      const black = mat('#2a2230');
+      const p = new Parts(body);
+      // A round stripy body, big eyes, feelers, and a little sting.
+      p.add(new THREE.SphereGeometry(0.13, 20, 14), yellow, { scale: [1, 0.95, 1.2] });
+      for (const z of [-0.025, -0.095]) {
+        const r = 0.13 * Math.sqrt(1 - (z / 0.156) ** 2) + 0.004;
+        p.add(new THREE.TorusGeometry(r, 0.022, 6, 24), black, { at: [0, 0, z], scale: [1, 0.95, 1] });
+      }
+      p.add(new THREE.ConeGeometry(0.028, 0.07, 10).rotateX(-Math.PI / 2), black, { at: [0, -0.01, -0.175] });
+      for (const side of [-1, 1]) {
+        p.add(new THREE.SphereGeometry(0.036, 12, 10), mat('#ffffff'), { at: [side * 0.052, 0.04, 0.125] });
+        p.add(new THREE.SphereGeometry(0.02, 10, 8), black, { at: [side * 0.055, 0.042, 0.155] });
+        p.bar([side * 0.03, 0.1, 0.08], [side * 0.07, 0.2, 0.13], 0.008, black);
+        p.add(new THREE.SphereGeometry(0.018, 8, 6), black, { at: [side * 0.07, 0.2, 0.13] });
+      }
+      p.done();
+      const wings = shared(noOutline(new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false })));
+      for (const side of [-1, 1]) buddyWing(body, side, [side * 0.04, 0.11, -0.02], { long: 0.085, wide: 0.05, material: wings, rest: 0.5 });
+    },
+    animate: floatBuddy({ bob: 0.05, rate: 3.2, flap: 22, sway: 0.18 }),
+  },
+
+  ghost: {
+    rig: true,
+    build(g) {
+      const buddy = new THREE.Group();
+      buddy.name = 'buddy';
+      buddy.position.copy(BUDDY_AT);
+      g.add(buddy);
+      const body = new THREE.Group();
+      body.name = 'body';
+      buddy.add(body);
+      const sheet = mat('#f6f4ff', { side: THREE.DoubleSide });
+      const black = mat('#2a2230');
+      const p = new Parts(body);
+      // A round head flowing down into a wavy hem.
+      p.add(new THREE.SphereGeometry(0.15, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), sheet);
+      const skirt = new THREE.CylinderGeometry(0.15, 0.18, 0.18, 32, 3, true);
+      const pos = skirt.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const down = 0.5 - pos.getY(i) / 0.18;
+        pos.setY(i, pos.getY(i) + Math.sin(Math.atan2(pos.getX(i), pos.getZ(i)) * 5) * 0.03 * down);
+      }
+      skirt.computeVertexNormals();
+      p.add(skirt, sheet, { at: [0, -0.09, 0] });
+      // A happy face, and little arms.
+      for (const side of [-1, 1]) {
+        p.add(new THREE.SphereGeometry(1, 10, 8), black, { at: [side * 0.055, 0.04, 0.135], scale: [0.022, 0.034, 0.012] });
+        p.add(new THREE.SphereGeometry(1, 10, 8), mat('#ffb3c8'), { at: [side * 0.09, -0.005, 0.12], rot: [0, side * 0.6, 0], scale: [0.025, 0.014, 0.008] });
+        p.add(new THREE.SphereGeometry(1, 10, 8), sheet, { at: [side * 0.16, -0.07, 0.02], rot: [0, 0, side * -0.6], scale: [0.05, 0.03, 0.035] });
+      }
+      p.add(new THREE.TorusGeometry(0.022, 0.008, 6, 12, Math.PI).rotateZ(Math.PI), black, { at: [0, -0.005, 0.145] });
+      p.done();
+    },
+    animate: floatBuddy({ bob: 0.08, rate: 1.8, sway: 0.15 }),
+  },
+
+  chick: {
+    rig: true,
+    build(g) {
+      const buddy = new THREE.Group();
+      buddy.name = 'buddy';
+      buddy.position.copy(BUDDY_AT);
+      g.add(buddy);
+      const body = new THREE.Group();
+      body.name = 'body';
+      buddy.add(body);
+      const fluff = mat('#ffd84d');
+      const orange = mat('#ff9a1f');
+      const p = new Parts(body);
+      // A fluffy round chick with a beak, a tuft and little feet.
+      p.add(new THREE.SphereGeometry(0.14, 20, 14), fluff, { scale: [1, 0.95, 1] });
+      p.add(new THREE.ConeGeometry(0.035, 0.07, 10).rotateX(Math.PI / 2), orange, { at: [0, -0.005, 0.15] });
+      for (const side of [-1, 1]) {
+        p.add(new THREE.SphereGeometry(0.022, 10, 8), mat('#2a2230'), { at: [side * 0.055, 0.045, 0.12] });
+        p.add(new THREE.SphereGeometry(1, 10, 8), mat('#ffb3c8'), { at: [side * 0.085, 0.0, 0.11], rot: [0, side * 0.6, 0], scale: [0.022, 0.013, 0.008] });
+        p.add(new THREE.SphereGeometry(1, 8, 6), orange, { at: [side * 0.05, -0.14, 0.03], scale: [0.03, 0.012, 0.045] });
+      }
+      [-0.35, 0, 0.35].forEach((lean) => p.add(new THREE.SphereGeometry(1, 8, 6), fluff, { at: [Math.sin(lean) * 0.05, 0.15, 0], rot: [0, 0, -lean], scale: [0.016, 0.05, 0.016] }));
+      p.done();
+      for (const side of [-1, 1]) buddyWing(body, side, [side * 0.12, 0.0, -0.01], { long: 0.06, wide: 0.05, material: fluff, rest: -0.2 });
+    },
+    animate: floatBuddy({ bob: 0.07, rate: 4, flap: 9, sway: 0.1 }),
+  },
+
+  rainbow: {
+    effect: {
+      on: 'run',
+      ground: true,
+      spacing: 0.14,
+      max: 80,
+      // Flat blobs of paint along the ground, a little up off it, coloring in on top of whatever's there.
+      look: () => [{ geometry: geo(new THREE.CylinderGeometry(1, 1, 0.02, 24)), material: flat('#ffffff', { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), tint: true }],
+      // Round the rainbow as it goes, a band every 3 or so of its own lengths.
+      spawn(m, at) {
+        m.pos.copy(at.pos);
+        m.pos.y += 0.025 * at.scale;
+        m.size = at.scale * 0.36;
+        m.life = 1.1;
+        m.grow = 0.06;
+        m.fade = 0.5;
+        m.color.setHSL((at.distance / 3) % 1, 0.95, 0.55);
+      },
+    },
+  },
+
+  blooms: {
+    effect: {
+      on: 'run',
+      ground: true,
+      spacing: 0.4,
+      max: 40,
+      // A flower: a stem with two leaves, petals round the top and a middle (its petals tinted).
+      look() {
+        const leaves = mergeGeometries(
+          [
+            new THREE.CylinderGeometry(0.018, 0.022, 0.3, 6).translate(0, 0.15, 0),
+            new THREE.SphereGeometry(1, 8, 6).scale(0.06, 0.016, 0.03).translate(0.06, 0, 0).rotateZ(0.5).translate(0, 0.1, 0),
+            new THREE.SphereGeometry(1, 8, 6).scale(0.05, 0.016, 0.026).translate(-0.05, 0, 0).rotateZ(-0.5).translate(0, 0.16, 0),
+          ].map((g) => g.toNonIndexed()),
+        );
+        const petals = mergeGeometries(
+          Array.from({ length: 6 }, (_, i) =>
+            new THREE.SphereGeometry(1, 8, 6)
+              .scale(0.055, 0.02, 0.032)
+              .translate(0.06, 0, 0)
+              .rotateZ(0.35)
+              .rotateY((i / 6) * Math.PI * 2)
+              .translate(0, 0.31, 0)
+              .toNonIndexed(),
+          ),
+        );
+        return [
+          { geometry: geo(leaves), material: flat('#46b45a') },
+          { geometry: geo(petals), material: flat('#ffffff'), tint: true },
+          { geometry: geo(new THREE.SphereGeometry(0.035, 10, 8).translate(0, 0.32, 0)), material: flat('#ffc61a') },
+        ];
+      },
+      // Where each foot was, springing up, swaying, and tucking back into the ground.
+      spawn(m, at) {
+        m.pos.copy(at.pos).addScaledVector(at.side, at.foot * 0.26 * at.scale + spread(0.05) * at.scale).addScaledVector(at.forward, spread(0.08) * at.scale);
+        m.size = at.scale * (1.5 + Math.random() * 0.5);
+        m.life = 1.35;
+        m.grow = 0.22;
+        m.fade = 0.4;
+        m.rot.set(0, Math.random() * Math.PI * 2, 0);
+        m.color.set(pick(['#ff5fa2', '#ffffff', '#ffd23d', '#b57bff', '#ff8a5c', '#5fb8ff']));
+      },
+      tick(m) {
+        m.rot.z = Math.sin(m.age * 6 + m.phase) * 0.12;
+      },
+    },
+  },
+
+  sparkles: {
+    effect: {
+      on: 'run',
+      spacing: 0.22,
+      max: 64,
+      // Little four-pointed stars, two crossed so they show from every side.
+      look() {
+        const star = starShape(4, 1, 0.32, 0.02);
+        const one = new THREE.ShapeGeometry(star, 4);
+        return [{ geometry: geo(mergeGeometries([one.clone().toNonIndexed(), one.rotateY(Math.PI / 2).toNonIndexed()])), material: basic('#ffffff', { side: THREE.DoubleSide }), tint: true }];
+      },
+      // Around and above it, drifting up and twinkling out.
+      spawn(m, at) {
+        m.pos.copy(at.pos).addScaledVector(at.side, spread(0.45) * at.scale).addScaledVector(at.forward, spread(0.2) * at.scale);
+        m.pos.y += (0.15 + Math.random() * 1.1) * at.scale;
+        m.vel.set(spread(0.3), 0.5 + Math.random() * 0.6, spread(0.3)).multiplyScalar(at.scale);
+        m.drag = 1.2;
+        m.size = at.scale * (0.11 + Math.random() * 0.09);
+        m.life = 0.7 + Math.random() * 0.5;
+        m.grow = 0.12;
+        m.fade = 0.4;
+        m.rot.set(0, Math.random() * Math.PI, 0);
+        m.spin.set(0, spread(3) + 4, 0);
+        m.color.set(pick(['#ffe14d', '#ffc61a', '#fff6a8', '#ffffff', '#ff9ff3', '#8fe3ff']));
+      },
+    },
+  },
+
+  bubbles: {
+    effect: {
+      on: 'run',
+      spacing: 0.42,
+      max: 44,
+      // See-through bubbles, clear in the middle and bright round the edge, with a shine on them.
+      look: () => [
+        { geometry: geo(new THREE.SphereGeometry(1, 18, 14)), material: shared(noOutline(bubbleMaterial())) },
+        { geometry: geo(new THREE.SphereGeometry(0.2, 8, 6).scale(1, 1.4, 0.5).translate(-0.4, 0.45, 0.72)), material: basic('#ffffff', { transparent: true, opacity: 0.9, depthWrite: false }) },
+      ],
+      // From behind it, wobbling up, then pop.
+      spawn(m, at) {
+        m.pos.copy(at.pos).addScaledVector(at.side, spread(0.35) * at.scale).addScaledVector(at.forward, -0.25 * at.scale);
+        m.pos.y += (0.25 + Math.random() * 0.7) * at.scale;
+        m.vel.set(spread(0.25), 0.45 + Math.random() * 0.5, spread(0.25)).multiplyScalar(at.scale);
+        m.drag = 0.6;
+        m.size = at.scale * (0.1 + Math.random() * 0.1);
+        m.life = 1.0 + Math.random() * 0.7;
+        m.grow = 0.18;
+        m.pop = true;
+        m.wobble = 0.04 * at.scale;
+      },
+    },
+  },
+
+  confetti: {
+    effect: {
+      on: 'cheer',
+      burst: 22,
+      max: 88,
+      look: () => [{ geometry: geo(new THREE.PlaneGeometry(0.13, 0.08)), material: basic('#ffffff', { side: THREE.DoubleSide }), tint: true }],
+      // Up out of the top of its head, then fluttering down, tumbling.
+      spawn(m, at) {
+        m.pos.copy(at.pos);
+        m.pos.y += 1.55 * at.scale;
+        const a = Math.random() * Math.PI * 2;
+        const out = 1.2 + Math.random() * 1.6;
+        m.vel.set(Math.cos(a) * out, 2.6 + Math.random() * 1.8, Math.sin(a) * out).multiplyScalar(at.scale);
+        m.gravity = 7 * at.scale;
+        m.drag = 2.2;
+        m.size = at.scale * (0.9 + Math.random() * 0.5);
+        m.life = 1.3 + Math.random() * 0.5;
+        m.grow = 0.05;
+        m.fade = 0.3;
+        m.rot.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+        m.spin.set(spread(10), spread(6), spread(10));
+        m.color.set(pick(['#ff4d5e', '#ffd23d', '#3d8bff', '#2ec7c0', '#ff8a1f', '#b57bff', '#8fd14f', '#ff5fa2']));
+      },
+    },
+  },
+
+  hearts: {
+    effect: {
+      on: 'cheer',
+      burst: 3,
+      max: 24,
+      look: () => [
+        {
+          geometry: geo(new THREE.ExtrudeGeometry(heartShape(), { depth: 0.18, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.05, bevelSegments: 3, curveSegments: 10 }).translate(0, 0, -0.09)),
+          material: flat('#ffffff'),
+          tint: true,
+        },
+      ],
+      // Up from around its head, rising faster as they go, rocking side to side.
+      spawn(m, at) {
+        m.pos.copy(at.pos).addScaledVector(at.side, at.foot * (0.25 + Math.random() * 0.3) * at.scale);
+        m.pos.y += (1.2 + Math.random() * 0.4) * at.scale;
+        m.vel.set(spread(0.3), 1.0 + Math.random() * 0.6, spread(0.3)).multiplyScalar(at.scale);
+        m.gravity = -0.8 * at.scale;
+        m.drag = 0.4;
+        m.size = at.scale * (0.2 + Math.random() * 0.1);
+        m.life = 1.5;
+        m.grow = 0.25;
+        m.fade = 0.4;
+        m.rot.set(0, Math.atan2(at.forward.x, at.forward.z) + spread(0.4), 0);
+        m.color.set(pick(['#ff4d6d', '#ff7aa8', '#ff2e63', '#ffb3c8']));
+      },
+      tick(m) {
+        m.rot.z = Math.sin(m.age * 5 + m.phase) * 0.3;
+      },
+    },
+  },
 };
 
 // Every item in shared/cosmetics.js has a look here.
@@ -604,13 +1413,14 @@ const shoe = (item, side) => (g) => {
   g.add(inner);
 };
 
-// A new copy of the item for one Mosh: { obj (on its torso) or feet ([left, right]), slot, lift,
-// top, crowned, animate, fit (an antenna's), hidesEyes }.
+// A new copy of the item for one Mosh: { obj (on its torso, or beside it with rig) or feet ([left,
+// right]), slot, lift, top, crowned, animate, fit (an antenna's), hidesEyes, rig, effect (what it
+// leaves in the world: effects.js) }.
 export function makeItem(id) {
   const item = ITEMS[id];
   if (!item) return null;
   return {
-    obj: item.feet ? null : copy(id, (g) => item.build(g)),
+    obj: item.feet || !item.build ? null : copy(id, (g) => item.build(g)),
     feet: item.feet ? [-1, 1].map((side) => copy(`${id}:${side}`, shoe(item, side))) : null,
     slot: COSMETICS[id].slot,
     lift: item.lift ?? 0,
@@ -619,5 +1429,7 @@ export function makeItem(id) {
     animate: item.animate ?? null,
     fit: item.antenna ? (obj, cover) => fitMasts(obj, Math.max(0, cover + 0.02 - item.base)) : null,
     hidesEyes: item.hidesEyes ?? false,
+    rig: item.rig ?? false,
+    effect: item.effect ?? null,
   };
 }

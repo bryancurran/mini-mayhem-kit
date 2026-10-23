@@ -7,7 +7,7 @@ import { MINIGAMES } from '../../../shared/minigames.js';
 import { disposeScene } from '../gfx.js';
 import { isTouchDevice } from '../input.js';
 import { sfx } from '../sfx.js';
-import { preloadSounds } from '../sounds.js';
+import { playSound, preloadSounds } from '../sounds.js';
 import { loadPackage } from './catalog.js';
 import { Controls } from './controls.js';
 import { Hud } from './hud.js';
@@ -17,8 +17,12 @@ import { SceneHost } from './scene.js';
 // client/src/minigames/index.js) wrapped around a QuickJS sandbox that runs the package's
 // rules.js and view.js. Once a frame it hands the sandbox the time, our inputs and whatever the
 // server sent; the sandbox predicts the game up to now and returns drawing commands, which
-// SceneHost checks and draws. The countdown, spectator banner, controls hint and whistle are
-// the same for every packaged game, so they live here.
+// SceneHost checks and draws. The countdown, spectator banner, controls hint and the end's sound
+// are the same for every packaged game, so they live here.
+
+// What a game's end sounds like (see sayEnd): the referee's whistle, for everyone ([name, ms after,
+// volume] each). (The scoreboard after it has a sound of its own: main.js.)
+const END_SOUNDS = { first: [['retro/refereewhistle', 0, 1]], rest: [['retro/refereewhistle', 0, 1]] };
 
 export function scriptedView(info) {
   return class extends ScriptedView {
@@ -56,6 +60,7 @@ class ScriptedView {
     this.host = new SceneHost(this.scene, this.camera, {
       hud: this.hud,
       onBadCommand: (msg) => console.warn(`[${id}] ${msg}`),
+      onEnd: (won) => this.sayEnd(won),
       onControls: (o) => {
         if (Number.isInteger(o?.turn)) this.turn = ((o.turn % 4) + 4) % 4;
         if (typeof o?.button === 'boolean') this.button = o.button;
@@ -130,6 +135,8 @@ class ScriptedView {
     try {
       const [{ loadQuickJS }, pkg] = await Promise.all([import('./quickjs.js'), loadPackage(this.id, this.ctx.version)]);
       preloadSounds(pkg.files['view.js']); // (already on their way if it was up next in the lobby)
+      preloadSounds([...END_SOUNDS.first, ...END_SOUNDS.rest].map(([name]) => `'${name}'`).join(' ')); // (the end's, see sayEnd)
+      preloadSounds("'ui/confirmation-2'"); // (played for the synthesized 'win': see scene.js)
       const QuickJS = await loadQuickJS();
       if (this.disposed) return;
       this.manifest = pkg.manifest;
@@ -194,11 +201,25 @@ class ScriptedView {
     if (snap.h) inbox.hash = snap.h;
   }
 
-  onGameOver() {
+  onGameOver(msg) {
     this.over = true;
     this.controls?.dispose();
     this.controls = null;
-    sfx.whistle();
+    // The end's sound, if the game didn't sound it when its result was decided.
+    const mine = msg?.results?.find((r) => r.id === this.ctx.meId);
+    this.sayEnd(mine?.place === 1);
+  }
+
+  // The end: the referee's whistle. Once a game: when the game says its result is decided
+  // (mm.sound('end', won), the moment it shows who won), or else when it ends.
+  sayEnd(won) {
+    if (this.endSaid) return;
+    this.endSaid = true;
+    for (const [name, after, volume] of won ? END_SOUNDS.first : END_SOUNDS.rest) {
+      const play = () => playSound(name, { take: 1, volume }, { patience: 1500 });
+      if (after) setTimeout(play, after);
+      else play();
+    }
   }
 
   // ---- per frame --------------------------------------------------------------------------

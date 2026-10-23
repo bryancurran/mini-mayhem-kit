@@ -594,6 +594,10 @@ it lists the names, how many takes and how long). A sound's name is `category/wh
   follows the speed); `null` stops it; up to 4 keys at once. Any sound can loop, but the ones made
   for it (the browser marks them, and their names or tags say "loop": `ambience/`, `retro/...-loop`)
   join seamlessly.
+- **The end:** the moment your game shows who won, call `mm.sound('end', won)` once, `won` being
+  whether this player won. The engine blows the referee's whistle then (and the scoreboard that
+  follows plays its own fanfare). Without it, the whistle goes when the game ends (`game.end()`),
+  which can be a few seconds after the result went up.
 - `mm.music` and `mm.loop` can be called every frame: they're sent only when something changes.
 - **Loading.** The sounds a game uses are fetched while it's up next in the lobby, so they play
   straight away, as long as each name is written out in quotes in view.js (`'hit/wood-heavy'`, and

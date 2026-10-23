@@ -9,7 +9,11 @@ import { Sandbox } from './sandbox.js';
 // The server runs a second copy of the rules beside the game's own, fed the same inputs, so
 // nothing a game's bot() does (however slow or broken) can reach the game. Ten times a second the
 // copy's state is moved on to the present, bot() says what each bot holds, and whatever changed
-// becomes inputs, made at that moment, as a player's would be.
+// becomes inputs, as a player's would be. Each bot's are made at a moment of its own in the tick
+// to come (a different one each time), so two bots never act at exactly the same moment: in a
+// game of timing, like letting go of a sled, they'd tie. (Not in the tenth of a second just gone:
+// a bot that acted before the moment it decided at would see the future, and in a game of
+// steering, it turned before it had seen what it was turning from, and too far.)
 
 export const BOT_THINK_MS = 100;
 // Bots never take more than about this share of the server's time: a game whose bot() is slow
@@ -117,6 +121,7 @@ export class Bots {
     this.hands = bots.map(() => botHands(this.spec));
     this.nextAt = 0;
     this.every = BOT_THINK_MS;
+    this.luck = (seed >>> 0) % 2147483646 || 1; // for the moments the bots' inputs are made at
     this.restarts = 0;
     this.failed = new Set(); // bots whose bot() has thrown (logged once each)
     this.box = null;
@@ -154,9 +159,16 @@ export class Bots {
     return t >= 0 && t >= this.nextAt;
   }
 
-  // What the bots do at game time t (whole ms): [[index in the player list, input], ...]. pending:
-  // inputs the game has that its sandbox hasn't been given yet (encoded as in advance). A bot
-  // whose bot() throws, or whose go is missed, keeps holding what it held.
+  // A number from 0 up to 1 (a Park-Miller generator: the bots' timing isn't part of the game).
+  random() {
+    this.luck = (this.luck * 16807) % 2147483647;
+    return this.luck / 2147483647;
+  }
+
+  // What the bots do at game time t (whole ms): [[index in the player list, input, when], ...],
+  // when being the moment that bot's inputs are made (t, or a moment after it). pending: inputs
+  // the game has that its sandbox hasn't been given yet (encoded as in advance). A bot whose bot()
+  // throws, or whose go is missed, keeps holding what it held.
   think(t, pending = []) {
     if (!this.due(t)) return [];
     this.nextAt = t + this.every;
@@ -171,6 +183,16 @@ export class Bots {
       }
       this.every = Math.max(BOT_THINK_MS, Math.min(1000, (performance.now() - started) / BOT_CPU_SHARE));
     }
+    // Each bot's moment in the tick to come: the bots take its slots in a new order each time, each
+    // somewhere in its slot, so no two make theirs at the same moment and none is always earlier
+    // than the others.
+    const n = this.bots.length;
+    const span = Math.floor(1000 / this.rate);
+    const slots = this.bots.map((_, i) => i);
+    for (let i = n - 1; i > 0; i--) {
+      const j = Math.floor(this.random() * (i + 1));
+      [slots[i], slots[j]] = [slots[j], slots[i]];
+    }
     const out = [];
     this.bots.forEach((index, i) => {
       const answer = answers ? answers[i] : undefined; // (undefined: random presses)
@@ -179,7 +201,8 @@ export class Bots {
         this.failed.add(index);
         return;
       }
-      for (const a of this.hands[i].act(answer, t)) out.push([index, a]);
+      const when = t + Math.floor(((slots[i] + this.random()) * span) / n);
+      for (const a of this.hands[i].act(answer, when)) out.push([index, a, when]);
     });
     return out;
   }
