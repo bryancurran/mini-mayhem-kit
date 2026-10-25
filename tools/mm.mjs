@@ -574,7 +574,7 @@ async function feedback() {
   if (flags.json) return console.log(JSON.stringify(data, null, 2));
   if (id) return showFeedback(data);
 
-  const games = data.games.sort((a, b) => (b.lastNote ?? 0) - (a.lastNote ?? 0) || a.name.localeCompare(b.name));
+  const games = data.games.sort((a, b) => (b.lastNote ?? 0) - (a.lastNote ?? 0) || a.id.localeCompare(b.id));
   if (!games.length) return console.log(`There are no games in ${who(logins.get())}'s account on ${host} yet.`);
   console.log(`How players found your games on ${host} (newest notes first). npm run feedback <id> shows a game's ratings version by version, and its notes.\n`);
   const rows = [['game', 'version', 'rounds', 'players', 'rated', 'this version', 'notes']];
