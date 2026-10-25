@@ -22,7 +22,7 @@ export const MM = {
   maxFileBytes: 256 * 1024,
   maxPackageBytes: 1024 * 1024,
   maxUploadBytes: 200 * 1024, // packages players upload are held to less
-  uploadsPerHour: 6, // per player (by address)
+  uploadsPerHour: 20, // per player (by address)
   maxGameSeconds: 15 * 60, // a game that never ends is stopped after this long
   memory: { server: 32 * 1024 * 1024, client: 64 * 1024 * 1024 },
   deadline: { setup: 2000, tick: 50, frame: 250 }, // ms a single call into the sandbox may take
