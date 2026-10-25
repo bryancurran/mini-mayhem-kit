@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import ENGINE from '../../../shared/mm/prelude-rules.js?raw';
 import KIT from '../../../shared/mm/prelude-view.js?raw';
-import { MM } from '../../../shared/mm/format.js';
+import { MAX_POINT, MM } from '../../../shared/mm/format.js';
 import { Sandbox } from '../../../shared/mm/sandbox.js';
 import { MINIGAMES } from '../../../shared/minigames.js';
 import { disposeScene } from '../gfx.js';
@@ -23,6 +23,9 @@ import { SceneHost } from './scene.js';
 // What a game's end sounds like (see sayEnd): the referee's whistle, for everyone ([name, ms after,
 // volume] each). (The scoreboard after it has a sound of its own: main.js.)
 const END_SOUNDS = { first: [['retro/refereewhistle', 0, 1]], rest: [['retro/refereewhistle', 0, 1]] };
+const AXES = ['x', 'y', 'z'];
+const ray = new THREE.Raycaster();
+const screenPoint = new THREE.Vector2();
 
 export function scriptedView(info) {
   return class extends ScriptedView {
@@ -57,6 +60,7 @@ class ScriptedView {
     if (!this.isPlaying) this.hud.banner('Spectating · you’ll play next round', { style: 'info' });
     this.turn = 0; // mm.controls({ turn }), kept for the controls once they're made…
     this.button = true; // …and mm.controls({ button })
+    this.plane = { axis: 1, at: 0 }; // and the pointer's: mm.controls({ pointer: { y: 0 } }), the floor
     this.host = new SceneHost(this.scene, this.camera, {
       hud: this.hud,
       onBadCommand: (msg) => console.warn(`[${id}] ${msg}`),
@@ -64,6 +68,8 @@ class ScriptedView {
       onControls: (o) => {
         if (Number.isInteger(o?.turn)) this.turn = ((o.turn % 4) + 4) % 4;
         if (typeof o?.button === 'boolean') this.button = o.button;
+        const axis = AXES.findIndex((k) => Number.isFinite(o?.pointer?.[k]));
+        if (axis >= 0) this.plane = { axis, at: o.pointer[AXES[axis]] };
         if (this.controls) this.controls.turn = this.turn;
         this.controls?.showButton(this.button);
       },
@@ -74,6 +80,7 @@ class ScriptedView {
     this.inbox = { log: [], fin: this.init.fin ?? 0, hash: null, reset: null };
     this.nextInput = 0;
     this.startMove = null; // the stick as it's held during the countdown
+    this.startPointer = null; // and where the pointer is
     this.box = null;
     this.controls = null;
     this.manifest = null;
@@ -166,7 +173,14 @@ class ScriptedView {
       this.host.apply(JSON.parse(commands));
       this.hud.buttonLabel = pkg.manifest.input.touchLabel ?? 'READY';
       if (this.isPlaying && !this.over) {
-        this.controls = new Controls({ input: this.ctx.input, hudRoot: this.ctx.hudRoot, hud: this.hud, spec: pkg.manifest.input, clock: () => Math.floor(this.gameMs()) }); // never ahead of now, or it waits a frame
+        this.controls = new Controls({
+          input: this.ctx.input,
+          hudRoot: this.ctx.hudRoot,
+          hud: this.hud,
+          spec: pkg.manifest.input,
+          clock: () => Math.floor(this.gameMs()), // never ahead of now, or it waits a frame
+          project: (x, y) => this.project(x, y),
+        });
         this.controls.turn = this.turn;
         this.controls.showButton(this.button);
       }
@@ -183,6 +197,22 @@ class ScriptedView {
     this.hud.banner('This game hit a problem and stopped. Hang tight for the next round!', { style: 'warn' });
     this.controls?.dispose();
     this.controls = null;
+  }
+
+  // Where a point on the screen (CSS pixels) is in the world, as the camera showed it last frame:
+  // on the pointer's plane (the floor unless the view says), as [x, y, z] in thousandths, or null
+  // where the screen doesn't look at it.
+  project(x, y) {
+    screenPoint.set((x / window.innerWidth) * 2 - 1, 1 - (y / window.innerHeight) * 2);
+    this.camera.updateMatrixWorld();
+    ray.setFromCamera(screenPoint, this.camera);
+    const { origin, direction } = ray.ray;
+    const { axis, at } = this.plane;
+    const k = AXES[axis];
+    const along = (at - origin[k]) / direction[k];
+    if (!Number.isFinite(along) || along <= 0 || along > this.camera.far * 4) return null;
+    const point = AXES.map((c, i) => Math.round((i === axis ? at : origin[c] + direction[c] * along) * 1000));
+    return point.every((v) => Math.abs(v) <= MAX_POINT) ? point : null;
   }
 
   // ---- networking -------------------------------------------------------------------------
@@ -274,11 +304,16 @@ class ScriptedView {
     // Our inputs go to the server straight away and into the prediction this frame.
     const local = [];
     if (this.controls && !this.over) {
-      // Before GO only the stick counts: wherever it's held then is sent at GO.
+      // Before GO only the stick and the pointer count: wherever they are then is sent at GO.
       const polled = [];
       for (const [t, a] of this.controls.poll()) {
         if (t >= 0) polled.push([t, a]);
         else if (a[0] === 'm') this.startMove = a;
+        else if (a[0] === 'c') this.startPointer = a;
+      }
+      if (this.startPointer && this.gameMs() >= 0) {
+        polled.unshift([0, this.startPointer]);
+        this.startPointer = null;
       }
       if (this.startMove && this.gameMs() >= 0) {
         if (this.startMove[1] || this.startMove[2]) polled.unshift([0, this.startMove]);

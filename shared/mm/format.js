@@ -11,7 +11,7 @@
 
 export const MM = {
   version: 1,
-  kitVersion: 15, // bump whenever the kit changes in a way uploads should wait for (see the kit's CHANGELOG.md)
+  kitVersion: 16, // bump whenever the kit changes in a way uploads should wait for (see the kit's CHANGELOG.md)
   netDelay: 300, // ms the server waits before a tick is final (later inputs move to the next tick)
   futureSlack: 300, // ms ahead of the server's clock an input may be stamped
   sendRate: 10, // snapshots per second (inputs are also passed on the moment they arrive)
@@ -36,8 +36,9 @@ const ID = /^[a-z][a-z0-9-]{1,30}$/;
 const COLOR = /^#[0-9a-f]{6}$/i;
 const TOUCH_LAYOUTS = ['tap', 'stick', 'hold', 'sides', 'swipe', 'none'];
 const TEXT_MODES = ['enter', 'live'];
+const POINTER_TOUCH = ['none', 'stick']; // a pointer game's layouts (with the stick, a touch anywhere else points)
 // What players can play on: a computer (keyboard), a phone (touch) or a gamepad. Typing games
-// need a keyboard, so a gamepad can't play them.
+// need a keyboard, so a gamepad can't play them. (Pointer games it can: its stick moves a cursor.)
 export const PLATFORMS = ['pc', 'mobile', 'gamepad'];
 const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/;
 const FILES = ['rules.js', 'view.js'];
@@ -80,7 +81,19 @@ export function checkManifest(raw) {
     }
   }
 
-  const input = { buttons: typing ? [] : ['a'], dirs: false, move: false, touch: typing ? 'none' : 'tap', text: false, maxLength: MM.maxTextLength, ...(m.input ?? {}) };
+  // A pointer game (input.pointer) gets where players point and click, in the world; on a phone
+  // a touch is the pointer, so it has no tap or swipe layout.
+  const pointing = m.input?.pointer === true;
+  const input = {
+    buttons: typing || pointing ? [] : ['a'],
+    dirs: false,
+    move: false,
+    touch: typing || pointing ? 'none' : 'tap',
+    text: false,
+    maxLength: MM.maxTextLength,
+    pointer: false,
+    ...(m.input ?? {}),
+  };
   if (!Array.isArray(input.buttons) || !input.buttons.every((b) => b === 'a' || b === 'b') || new Set(input.buttons).size !== input.buttons.length) {
     errors.push('input.buttons: any of "a", "b"');
   }
@@ -90,9 +103,11 @@ export function checkManifest(raw) {
   if (!TOUCH_LAYOUTS.includes(input.touch)) errors.push(`input.touch: one of ${TOUCH_LAYOUTS.join(', ')}`);
   if (input.touchLabel !== undefined && !text(input.touchLabel, 12)) errors.push('input.touchLabel: up to 12 characters');
   if (input.text !== false && !TEXT_MODES.includes(input.text)) errors.push('input.text: false, "enter" or "live"');
+  if (typeof input.pointer !== 'boolean') errors.push('input.pointer: true or false');
+  if (pointing && !typing && !POINTER_TOUCH.includes(input.touch)) errors.push(`input.touch: a pointer game's is ${POINTER_TOUCH.map((t) => `"${t}"`).join(' or ')} (a touch is the pointer)`);
   if (typing) {
-    if (input.buttons?.length || input.dirs || input.move || input.touch !== 'none') {
-      errors.push('input.text: a typing game takes only typing (no buttons, dirs or move, and touch "none")');
+    if (input.buttons?.length || input.dirs || input.move || input.pointer || input.touch !== 'none') {
+      errors.push('input.text: a typing game takes only typing (no buttons, dirs, move or pointer, and touch "none")');
     }
     if (!Number.isInteger(input.maxLength) || input.maxLength < 1 || input.maxLength > MM.maxTextLength) errors.push(`input.maxLength: 1-${MM.maxTextLength} characters`);
   }
@@ -119,6 +134,7 @@ export function checkManifest(raw) {
       touch: input.touch,
       ...(input.touchLabel ? { touchLabel: input.touchLabel } : {}),
       ...(typing ? { text: input.text, maxLength: input.maxLength } : {}),
+      ...(pointing ? { pointer: true } : {}),
     },
   };
   return { manifest, errors };
@@ -179,10 +195,14 @@ export function lobbyInfo(manifest, { source = 'standard', by, uploadedAt, updat
 //
 // On the wire an input is a short array: ['p', 'a'] press, ['r', 'a'] release, ['d', 'u'|'d'|'l'|'r']
 // a direction tap, ['m', x, y] the stick (whole numbers -100..100, y up), ['t', text, 1] text
-// typed and sent with Enter, ['t', text, 0] what's in the text box so far (input.text "live").
-// Games only receive the kinds they asked for in manifest.input.
+// typed and sent with Enter, ['t', text, 0] what's in the text box so far (input.text "live"),
+// ['c', 0|1|2, x, y, z] the pointer moved, went down or came up at a point in the world (in
+// thousandths: whole numbers up to MAX_POINT). Games only receive the kinds they asked for in
+// manifest.input.
 
 const DIRS = new Set(['u', 'd', 'l', 'r']);
+export const MAX_POINT = 10_000_000; // ten thousand units each way
+const isPoint = (v) => Number.isInteger(v) && Math.abs(v) <= MAX_POINT;
 
 export function checkAction(a, input) {
   if (!Array.isArray(a)) return null;
@@ -194,6 +214,9 @@ export function checkAction(a, input) {
   }
   if (kind === 't' && a.length === 3 && input.text && (y === 1 || (y === 0 && input.text === 'live')) && typeof x === 'string') {
     if (x.length <= input.maxLength && !CONTROL_CHARS.test(x) && x === x.normalize('NFC')) return ['t', x, y];
+  }
+  if (kind === 'c' && a.length === 5 && input.pointer && (x === 0 || x === 1 || x === 2) && isPoint(y) && isPoint(a[3]) && isPoint(a[4])) {
+    return ['c', x, y, a[3], a[4]];
   }
   return null;
 }

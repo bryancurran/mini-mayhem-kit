@@ -1,4 +1,4 @@
-import { MM, botWord, cleanText, tickOf } from './format.js';
+import { MAX_POINT, MM, botWord, cleanText, tickOf } from './format.js';
 import { Sandbox } from './sandbox.js';
 
 // Bots: players the game server plays for (a private room's host can add them; the kit's
@@ -21,15 +21,18 @@ export const BOT_THINK_MS = 100;
 const BOT_CPU_SHARE = 0.04;
 const DIRS = { up: 'u', down: 'd', left: 'l', right: 'r' };
 const clamp = (v) => (Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0);
+// A point in the world, as the wire has it (thousandths).
+const toPoint = (v) => (Number.isFinite(v) ? Math.max(-MAX_POINT, Math.min(MAX_POINT, Math.round(v * 1000))) : 0);
 
 // One bot's hands on the controls: turns what bot() says it holds into presses, releases, stick
-// moves and taps (and typing, a letter at a time). act(answer, t) -> inputs to make at game time
+// moves and taps, pointing and clicking (and typing, a letter at a time). act(answer, t) -> inputs to make at game time
 // t (ms). answer is what bot() returned, or undefined for random presses (the game has no bot(),
 // or it failed). wild: how often to do something random instead (the play test's bots, so wrong
 // moves get tried too).
 export function botHands(spec, { rand = Math.random, wild = 0 } = {}) {
   const held = new Set();
   let stick = [0, 0];
+  let pointer = { at: [0, 0, 0], down: false };
   let nextRandom = 0;
   let typing = null; // { word, typed, next }
   let restUntil = 0;
@@ -42,6 +45,7 @@ export function botHands(spec, { rand = Math.random, wild = 0 } = {}) {
     if (spec.buttons.length) choices.push('button');
     if (spec.dirs) choices.push('dir');
     if (spec.move) choices.push('move');
+    if (spec.pointer) choices.push('click');
     const pick = choices[Math.floor(rand() * choices.length)];
     if (pick === 'button') {
       const b = spec.buttons[Math.floor(rand() * spec.buttons.length)];
@@ -52,6 +56,11 @@ export function botHands(spec, { rand = Math.random, wild = 0 } = {}) {
     if (pick === 'move') {
       stick = [Math.round((rand() * 2 - 1) * 10) * 10, Math.round((rand() * 2 - 1) * 10) * 10];
       return [['m', ...stick]];
+    }
+    if (pick === 'click') {
+      // (Somewhere on the floor near the middle: all a game's bot() can say is where it points.)
+      pointer = { at: [toPoint((rand() * 2 - 1) * 8), 0, toPoint((rand() * 2 - 1) * 8)], down: false };
+      return [['c', 1, ...pointer.at], ['c', 2, ...pointer.at]];
     }
     return [];
   }
@@ -94,6 +103,18 @@ export function botHands(spec, { rand = Math.random, wild = 0 } = {}) {
         if (moved && (x !== stick[0] || y !== stick[1])) out.push(['m', x, y]), (stick = [x, y]);
       }
       if (spec.dirs && Object.hasOwn(DIRS, a.dir)) out.push(['d', DIRS[a.dir]]);
+      // The pointer: where it is and whether it's held down. Left out, it stays where it was and
+      // lets go.
+      if (spec.pointer) {
+        const p = a.pointer && typeof a.pointer === 'object' ? a.pointer : null;
+        const at = p ? [toPoint(p.x), toPoint(p.y), toPoint(p.z)] : pointer.at;
+        const down = p?.down === true;
+        // (Wobbles under a hundredth of a unit aren't worth an input.)
+        const moved = at.some((v, k) => Math.abs(v - pointer.at[k]) >= 10);
+        if (down !== pointer.down) out.push(['c', down ? 1 : 2, ...at]);
+        else if (moved) out.push(['c', 0, ...at]);
+        if (down !== pointer.down || moved) pointer = { at, down };
+      }
       for (const b of spec.buttons) {
         const want = a[b] === true;
         if (want && !held.has(b)) out.push(['p', b]), held.add(b);

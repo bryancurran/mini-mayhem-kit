@@ -50,7 +50,7 @@ Both scripts run inside a sandbox (QuickJS). They can't use the page, the networ
 modules. They talk to the game only through `defineRules({...})`, `defineView({...})` and the
 `mm` drawing kit described in `docs/making-games.md`.
 
-The engine does everything else: rooms, the countdown, controls on phone, keyboard and gamepad,
+The engine does everything else: rooms, the countdown, controls on phone, keyboard, mouse and gamepad,
 netcode, spectators, the results screen and coins. You write the rules and the look.
 
 ## Workflow
@@ -62,8 +62,8 @@ netcode, spectators, the results screen and coins. You write the rules and the l
    clear way to win.
 3. **Start from the template:** `npm run new <id> -- --name "Game Name"`. This copies Coin Dash
    (a small, complete game) to `games/<id>/`. Read `examples/coin-dash/` and
-   `examples/sandwich-stack/` (a full-size game) to see how things are done, and
-   `examples/word-rush/` for a typing game.
+   `examples/sandwich-stack/` (a full-size game) to see how things are done,
+   `examples/word-rush/` for a typing game and `examples/mole-bonk/` for pointing and clicking.
 4. **Edit** `games/<id>/manifest.json`, `rules.js` and `view.js`.
 5. **Check after every meaningful change:** `npm run check <id>`. This runs the same bot play
    test an upload gets, and checks the id and name aren't taken in the library. Fix everything
@@ -177,10 +177,15 @@ of the rest.
   - buttons `a` and `b`;
   - direction taps (`dirs`);
   - a stick (`move`);
+  - the pointer (`pointer`): where players point and click, as a point in the world, from a
+    mouse, a finger or a gamepad's cursor;
   - a touch layout to match.
 
-  Every game must play equally well on a phone, a keyboard and a gamepad (typing games, below,
-  are the one exception), so there's no mouse, no aiming and no pointer input.
+  Every game must play on a phone, a keyboard and a gamepad (typing games, below, are the one
+  exception). The engine makes that so for every input, the pointer included, but a pointer is
+  as precise as the hand behind it: make targets big enough for a thumb on a phone, and give
+  them time, as a gamepad's cursor is slower than a mouse. See "Pointer games" in
+  `docs/making-games.md`.
 - **Or typing (`"text": "enter"` or `"live"`), and nothing else.** Players type into a text box
   (a phone's keyboard pops up for it). A gamepad can't play a typing game, so only make one when
   typing is the idea (word races, guessing words, answering questions), and agree it with your
@@ -280,6 +285,7 @@ docs/style-guide.md      the house style: look, palette, Moshes, camera, motion,
 examples/coin-dash/      the starter game (small, avatars, a stick, instances, bot())
 examples/sandwich-stack/ a full game (custom geometry, textures, baking, events)
 examples/word-rush/      a typing game (the text box, live typing, bot())
+examples/mole-bonk/      a pointer game (pointing and clicking, everyone's pointer drawn, bot())
 templates/starter/       what npm run new copies
 games/                   your games (git ignores them; submit with npm run upload)
 .mm-login.json           the kit's sign-in to your user's account (git ignores it; never share it)

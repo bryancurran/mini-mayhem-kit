@@ -1,0 +1,21 @@
+{
+  "id": "mole-bonk",
+  "name": "Mole Bonk",
+  "color": "#8bd450",
+  "tagline": "Bonk the moles before anyone else does!",
+  "rules": [
+    "Moles pop out of the holes for a moment.",
+    "Point at one and click (or tap it) to bonk it. Miss, and your mallet needs a moment to lift.",
+    "Most moles when time's up wins."
+  ],
+  "controls": {
+    "keyboard": "Point with the mouse · click to bonk",
+    "touch": "Tap a mole to bonk it",
+    "gamepad": "Stick to point · trigger or A to bonk"
+  },
+  "intro": "Bonk the moles!",
+  "tickRate": 30,
+  "countdown": 3,
+  "players": { "min": 1, "max": 8 },
+  "input": { "pointer": true }
+}

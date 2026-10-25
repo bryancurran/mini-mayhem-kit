@@ -67,7 +67,7 @@ to the game's library (see Uploading).
   try a game. Narrow it only when the game can't work otherwise (a duel: 2 to 2; a team game: 4 to
   8).
 - `input`: which inputs the game receives. Players never press keys at your game directly:
-  the engine maps keyboard, gamepad and touch onto these, the same way for every game.
+  the engine maps keyboard, mouse, gamepad and touch onto these, the same way for every game.
 
 | input | keyboard | gamepad | touch |
 |---|---|---|---|
@@ -76,6 +76,7 @@ to the game's library (see Uploading).
 | `dirs: true` (taps) | arrows / WASD | d-pad, stick flicks | |
 | `move: true` (a stick) | arrows / WASD held | left stick, d-pad | |
 | `text: "enter"` or `"live"` (typing) | typing in a text box | can't play | the phone's keyboard |
+| `pointer: true` (pointing) | the mouse | a cursor the stick moves | a finger |
 
 `repeat: true` (with `dirs`) has a direction key held down go on repeating, as it does in a text
 box, for counting a number up or down (Mosh Count). Without it, a held key is one tap.
@@ -91,8 +92,8 @@ starts, so a player who holds a direction through the countdown sets off straigh
 - `swipe`: swipe anywhere for directions.
 - `none`
 
-There's no mouse aiming or free-form pointer input on purpose: every game has to play the
-same on a phone, a keyboard and a gamepad.
+A game can also take the pointer (`pointer: true`, see Pointer games): the mouse, a finger or a
+gamepad's cursor, for pointing at things, clicking them and aiming.
 
 Directions are as the player sees them: up is up on the screen. A view whose camera looks along
 another axis (a board turned sideways to fit a phone held upright) turns them to match with
@@ -128,6 +129,30 @@ Bots type too: a word at a time, a letter at a time, then Enter. They type what 
 `bot()` says a good player would type now (see Bots); the check's bots also type a random word
 now and then, so wrong answers get tried as well. Without `bot()` they only type random words, so
 a game that needs the right words to end must also end on a timer. See `examples/word-rush`.
+
+### Pointer games
+
+`"input": { "pointer": true }` gives the game where each player points, as a point in the world,
+and when they click. On a computer it's the mouse; on a phone, a finger (tap, or touch and drag);
+with a gamepad, a ring on the screen that the stick moves, clicked with a trigger or a shoulder
+button (or A, if the game has no `a` button). The game gets the same thing from all three, so
+they all play it.
+
+- The point is where the screen under the pointer meets a plane in the world: the floor (y = 0)
+  unless the view picks another with `mm.controls({ pointer: { y: 1 } })`, or `{ z: 0 }` for a
+  game seen from the side (one of x, y or z). The camera is taken into account: a pointer that
+  stays still while the camera moves points somewhere new, and the game hears about it.
+- Moves come in up to 20 times a second, and only when the point moves by a hundredth of a unit or
+  more. A mouse points all the time, even with no button down; a finger only while it's touching.
+- A pointer game can take buttons, `dirs` and `move` too (WASD to run and the mouse to aim). It has
+  no `a` button unless it asks for one, and its touch layout is `"none"` (a touch anywhere is the
+  pointer) or `"stick"` (the stick and its button, and a touch anywhere else is the pointer).
+- A pointer is as precise as the hand behind it, and a gamepad's cursor is slower than a mouse:
+  make targets big enough to hit with a thumb on a phone, and give them time.
+- Draw each player's pointer from the state (a mallet, a crosshair, an arrow), so everyone sees
+  where everyone else points. Your own system cursor is still there on a computer.
+
+See `examples/mole-bonk`.
 
 ## rules.js
 
@@ -174,6 +199,9 @@ millisecond):
   straight ahead.
 - `{ type: 'text', text, enter }` in typing games: `enter` is `true` when they pressed Enter
   (the box is empty after that), and `false` for what's in the box so far (`text: "live"` only).
+- `{ type: 'pointer', action, x, y, z }` in pointer games: where they point, in the world (to the
+  thousandth), and `action` `'move'` (it moved), `'down'` (a click or a touch) or `'up'` (let go).
+  A `'down'` and its `'up'` both come with the point they happened at.
 
 Inputs arrive in time order, and an input is applied before the step of the tick it falls
 in.
@@ -209,6 +237,10 @@ player's controls would send. Return what the bot is holding right now:
   everything. A press lasts until an answer leaves the button out, so to tap one, hold it in one
   answer and let go in the next.
 - `{ dir: 'up' }`: a direction tap (with `input.dirs`), once for each answer that has it.
+- `{ pointer: { x, y, z, down } }`: where its pointer is, in the world, and whether it's held down
+  (a click is `down: true` in one answer and left out or `false` in the next). Left out, the
+  pointer stays where it was and lets go. A hand takes time to move a mouse, so move it there
+  over a few answers rather than jumping (see `examples/mole-bonk`).
 - In a typing game, a string: what a good player would type now (`''` for nothing just now).
 
 Only what the manifest's `input` asks for is used. `bot()` gets the state read-only (frozen: one
@@ -219,7 +251,7 @@ it quick, though: the bots of a game that takes more than a few milliseconds a g
 often. If it throws, that bot keeps holding what it held until its next go, and `npm run check`
 fails, saying why.
 
-Without `bot()`, bots press buttons at random. That's enough to see your game doesn't break, but
+Without `bot()`, bots press buttons (and click) at random. That's enough to see your game doesn't break, but
 useless as an opponent or a teammate, and the lobby warns players when a game's bots only press
 at random. So write one: make it play the way a good player would, then make it human. People
 take a moment to react, aim a little off and slip up now and then; a bot that plays perfectly

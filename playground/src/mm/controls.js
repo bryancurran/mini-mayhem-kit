@@ -1,10 +1,10 @@
 import { cleanText } from '../../../shared/mm/format.js';
 import { isTouchDevice } from '../input.js';
 
-// Turns keyboard, gamepad and touch into the inputs a packaged minigame asked for in its
-// manifest (input: { buttons, dirs, move, touch, text }): button presses and releases, direction
-// taps, the stick and typed text, each stamped with the game time it happened at. The game itself
-// never sees a key, a mouse or a touch.
+// Turns keyboard, mouse, gamepad and touch into the inputs a packaged minigame asked for in its
+// manifest (input: { buttons, dirs, move, touch, text, pointer }): button presses and releases,
+// direction taps, the stick, typed text and where the pointer is in the world, each stamped with
+// the game time it happened at. The game itself never sees a key, a mouse or a touch.
 
 const KEY_A = new Set(['Space', 'Enter', 'NumpadEnter']);
 const KEY_B = new Set(['ShiftLeft', 'ShiftRight', 'KeyE']);
@@ -18,13 +18,18 @@ const SWIPE_PX = 24;
 const TURN_ORDER = 'urdl'; // clockwise
 const MOVE_EVERY_MS = 33; // the stick is reported at most this often
 const LIVE_EVERY_MS = 50; // and the text box's contents (input.text "live")
+const POINTER_EVERY_MS = 50; // and the pointer, as it moves
+const CURSOR_SPEED = 1.4; // a gamepad's cursor at full tilt, in screen heights (or widths, if less) a second
 
 export class Controls {
   // clock() -> the current game time in whole milliseconds. hud: the game's Hud (for the text box).
-  constructor({ input, hudRoot, hud, spec, clock }) {
+  // project(x, y) -> where a point on the screen is in the world, [x, y, z] in thousandths, or null
+  // (for the pointer).
+  constructor({ input, hudRoot, hud, spec, clock, project }) {
     this.input = input;
     this.spec = spec;
     this.clock = clock;
+    this.project = project;
     this.queue = [];
     this.held = { a: new Set(), b: new Set() }; // what is holding each button down
     this.keys = new Set(); // direction keys held (for the stick)
@@ -51,6 +56,8 @@ export class Controls {
     this.buildTouch(hudRoot, on);
     this.text = null;
     if (spec.text) this.buildText(hud, on);
+    this.pointer = null;
+    if (spec.pointer) this.buildPointer(hudRoot, on);
   }
 
   // Shows or hides the touch button (mm.controls({ button })), for a player who's out: hidden, it
@@ -109,6 +116,116 @@ export class Controls {
       text.at = t;
       this.push(['t', text.live, 0]);
     }
+  }
+
+  // A pointer game: the mouse, a finger (the first one down, away from any touch controls) or a
+  // gamepad's cursor points at the screen. Where that is in the world goes to the game as it moves
+  // (or as the camera does, under a still pointer), when it goes down and when it comes up.
+  buildPointer(hudRoot, on) {
+    // screen: [x, y] in CSS pixels, or null (no mouse yet, or a finger lifted). held: what's holding
+    // it down ('mouse', 'touch:<id>', 'pad'). sent: the last point sent, at game time at.
+    const ptr = (this.pointer = { root: hudRoot, screen: null, held: null, sent: null, at: -Infinity, cursor: null, padDown: false, padAt: 0 });
+    const zone = document.createElement('div');
+    zone.className = 'pointer-zone';
+    hudRoot.prepend(zone); // under the HUD's buttons and the touch controls
+    this.cleanup.push(() => zone.remove());
+    const source = (e) => (e.pointerType === 'mouse' ? 'mouse' : `touch:${e.pointerId}`);
+    on(zone, 'pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      this.hideCursor();
+      ptr.screen = [e.clientX, e.clientY];
+      this.pointerDown(source(e));
+    });
+    on(window, 'pointermove', (e) => {
+      // A mouse points wherever it is; a finger only while it's the one holding the pointer down.
+      if (e.pointerType === 'mouse' || ptr.held === source(e)) {
+        if (e.pointerType === 'mouse') this.hideCursor();
+        ptr.screen = [e.clientX, e.clientY];
+      }
+    });
+    const lift = (e) => {
+      if (ptr.held !== source(e)) return;
+      ptr.screen = [e.clientX, e.clientY];
+      this.pointerUp();
+      if (e.pointerType !== 'mouse') ptr.screen = null;
+    };
+    on(window, 'pointerup', lift);
+    on(window, 'pointercancel', lift);
+  }
+
+  pointerDown(source) {
+    const ptr = this.pointer;
+    if (ptr.held || this.clock() < 0) return; // (presses before GO don't count)
+    const at = this.project(...ptr.screen);
+    if (!at) return;
+    ptr.held = source;
+    ptr.sent = at;
+    ptr.at = this.clock();
+    this.push(['c', 1, ...at]);
+  }
+
+  pointerUp() {
+    const ptr = this.pointer;
+    if (!ptr.held) return;
+    ptr.held = null;
+    const at = (ptr.screen && this.project(...ptr.screen)) ?? ptr.sent;
+    ptr.sent = at;
+    ptr.at = this.clock();
+    this.push(['c', 2, ...at]);
+  }
+
+  // A gamepad's cursor: a ring on the screen its stick moves. stick: [x, y] (y down), pressed: its
+  // click held.
+  padPointer(stick, pressed) {
+    const ptr = this.pointer;
+    const now = performance.now();
+    const dt = Math.min(0.1, (now - ptr.padAt) / 1000);
+    ptr.padAt = now;
+    const len = Math.hypot(stick[0], stick[1]);
+    if (len > DEADZONE || (pressed && !ptr.padDown)) {
+      if (!ptr.cursor) {
+        ptr.cursor = document.createElement('div');
+        ptr.cursor.className = 'pad-cursor';
+        ptr.root.appendChild(ptr.cursor);
+        this.cleanup.push(() => ptr.cursor.remove());
+      }
+      ptr.screen ??= [window.innerWidth / 2, window.innerHeight / 2];
+      ptr.cursor.hidden = false;
+      if (len > DEADZONE) {
+        // Slow near the middle of the stick, for small moves; quick at the edge.
+        const k = Math.min(1, (len - DEADZONE) / (1 - DEADZONE));
+        const speed = CURSOR_SPEED * Math.min(window.innerWidth, window.innerHeight) * k * k;
+        ptr.screen = [
+          Math.max(0, Math.min(window.innerWidth - 1, ptr.screen[0] + (stick[0] / len) * speed * dt)),
+          Math.max(0, Math.min(window.innerHeight - 1, ptr.screen[1] + (stick[1] / len) * speed * dt)),
+        ];
+      }
+      ptr.cursor.style.transform = `translate(${ptr.screen[0]}px, ${ptr.screen[1]}px)`;
+    }
+    if (pressed && !ptr.padDown) this.pointerDown('pad');
+    if (!pressed && ptr.padDown && ptr.held === 'pad') this.pointerUp();
+    ptr.padDown = pressed;
+  }
+
+  hideCursor() {
+    const ptr = this.pointer;
+    if (!ptr.cursor || ptr.cursor.hidden) return;
+    ptr.cursor.hidden = true;
+    if (ptr.held === 'pad') this.pointerUp();
+  }
+
+  // Where the pointer is goes out as it moves, a few times a second at most.
+  pollPointer() {
+    const ptr = this.pointer;
+    const t = this.clock();
+    if (!ptr.screen || t - ptr.at < POINTER_EVERY_MS) return;
+    const at = this.project(...ptr.screen);
+    // (Under a hundredth of a unit isn't worth an input: a gliding camera wobbles that much.)
+    if (!at || (ptr.sent && at.every((v, k) => Math.abs(v - ptr.sent[k]) < 10))) return;
+    ptr.sent = at;
+    ptr.at = t;
+    this.push(['c', 0, ...at]);
   }
 
   push(action) {
@@ -260,9 +377,20 @@ export class Controls {
 
     const now = { a: false, b: false, u: false, d: false, l: false, r: false };
     let analog = false; // a real stick in play (rather than keys or a d-pad)
+    // A pointer game's cursor: the right stick, or either stick and the d-pad in a game that doesn't
+    // use them for anything else. A trigger or shoulder button clicks (or A, if the game has no a).
+    const cursor = [0, 0];
+    let click = false;
+    const free = !spec.move && !spec.dirs;
     for (const pad of navigator.getGamepads?.() ?? []) {
       if (!pad) continue;
       const b = pad.buttons;
+      if (spec.pointer) {
+        const [ax = 0, ay = 0, rx = 0, ry = 0] = pad.axes;
+        cursor[0] += rx + (free ? ax + (b[15]?.pressed ? 1 : 0) - (b[14]?.pressed ? 1 : 0) : 0);
+        cursor[1] += ry + (free ? ay + (b[13]?.pressed ? 1 : 0) - (b[12]?.pressed ? 1 : 0) : 0);
+        click ||= [4, 5, 6, 7].some((i) => b[i]?.value > 0.5) || Boolean(!spec.buttons.includes('a') && b[0]?.pressed);
+      }
       now.a ||= Boolean(b[0]?.pressed || (!this.hasB && b[1]?.pressed));
       now.b ||= Boolean(b[1]?.pressed && this.hasB);
       const [ax = 0, ay = 0] = pad.axes;
@@ -298,6 +426,10 @@ export class Controls {
     }
     if (this.sideHeld && spec.touch === 'hold') mx += (this.sideHeld.r.size ? 1 : 0) - (this.sideHeld.l.size ? 1 : 0);
     if (this.text) this.pollText();
+    if (this.pointer) {
+      this.padPointer(cursor, click);
+      this.pollPointer();
+    }
 
     if (spec.move) {
       const len = Math.hypot(mx, my);

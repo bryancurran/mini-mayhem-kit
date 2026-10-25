@@ -16,6 +16,7 @@
   const realRandom = Math.random;
   const realNow = Date.now;
   const DIRS = { u: 'up', d: 'down', l: 'left', r: 'right' };
+  const POINTER_ACTIONS = ['move', 'down', 'up'];
 
   let rules = null;
   global.defineRules = function (r) {
@@ -94,6 +95,7 @@
     else if (a[0] === 'r') ev = { type: 'release', button: a[1] };
     else if (a[0] === 'd') ev = { type: 'dir', dir: DIRS[a[1]] };
     else if (a[0] === 't') ev = { type: 'text', text: a[1], enter: a[2] === 1 };
+    else if (a[0] === 'c') ev = { type: 'pointer', action: POINTER_ACTIONS[a[1]], x: a[2] / 1000, y: a[3] / 1000, z: a[4] / 1000 };
     else ev = { type: 'move', x: a[1] / 100, y: a[2] / 100 };
     ev.player = e.p;
     ev.time = e.t / 1000;
@@ -440,7 +442,7 @@
     },
 
     // What a bot playing { player } does now (rules.bot), from the predicted state, as JSON: what
-    // it holds ({ move, a, b, dir }) or, in a typing game, what it would type. For the bots in
+    // it holds ({ move, a, b, dir, pointer }) or, in a typing game, what it would type. For the bots in
     // the play test. null if the game doesn't say. It gets a frozen copy of the state.
     bot(json) {
       if (typeof rules.bot !== 'function' || !E.pred) return 'null';

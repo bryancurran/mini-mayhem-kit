@@ -1762,7 +1762,8 @@ button.user-game {
    pop up the copy / look up menu. */
 .hud,
 .touch-controls,
-.swipe-zone {
+.swipe-zone,
+.pointer-zone {
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -2693,6 +2694,49 @@ button.user-game {
   inset: 0;
   pointer-events: auto;
   touch-action: none;
+}
+
+/* ---- pointer games (manifest input.pointer) ------------------------------------ */
+
+/* Clicks and touches anywhere the HUD and touch controls aren't. */
+.pointer-zone {
+  position: fixed;
+  inset: 0;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+/* A gamepad's cursor: a ring its stick moves (translated to the point it's on). */
+.pad-cursor {
+  position: fixed;
+  left: -13px;
+  top: -13px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow:
+    0 0 0 2px var(--ink),
+    inset 0 0 0 2px var(--ink);
+  pointer-events: none;
+  z-index: 20;
+}
+
+.pad-cursor::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 1.5px var(--ink);
+}
+
+.pad-cursor[hidden] {
+  display: none;
 }
 
 /* ---- Sandwich Stack ---------------------------------------------------------- */

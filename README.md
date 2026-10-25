@@ -105,7 +105,7 @@ A minigame is a folder with three files: `manifest.json`, `rules.js` and `view.j
 - **view.js** draws it with a small kit of shapes, characters, effects and HUD pieces.
 
 Both run in a sandbox, so a game can't reach anyone's data. The game takes care of the rest:
-- controls on phones, keyboards and gamepads;
+- controls on phones, keyboards, mice and gamepads;
 - online play that feels instant;
 - spectators and results.
 
@@ -126,7 +126,7 @@ delete it, so the kit needs to be signed in to it (`npm run login`, which keeps 
 AGENTS.md                instructions for coding agents
 docs/making-games.md     the full guide and API reference
 docs/style-guide.md      the house style, so games fit in next to the standard ones
-examples/                Coin Dash (small), Sandwich Stack (a full game) and Word Rush (typing)
+examples/                Coin Dash (small), Sandwich Stack (a full game), Word Rush (typing) and Mole Bonk (pointing)
 templates/starter/       what npm run new copies
 games/                   your games (git ignores them; submit with npm run upload)
 CHANGELOG.md             what's new in each version of the kit

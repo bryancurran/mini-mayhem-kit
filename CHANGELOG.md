@@ -3,6 +3,18 @@
 `npm run update` gets the latest kit and prints what changed since yours. Uploads need the
 latest kit: Mini Mosh turns down games packed with an older one, and says how to update.
 
+## v16 (October 2026)
+
+- **Pointing and clicking:** `"input": { "pointer": true }` gives your game where each player
+  points, as a point in the world, and when they click: `{ type: 'pointer', action: 'move' |
+  'down' | 'up', x, y, z }`. On a computer it's the mouse, on a phone a finger, and with a gamepad
+  a ring on the screen its stick moves (a trigger clicks), so everyone can play. It lands on the
+  floor (y = 0) unless your view picks another plane with `mm.controls({ pointer: { z: 0 } })`.
+  It goes with buttons, `dirs` and `move` too (run with WASD, aim with the mouse). Bots point
+  with `bot()`'s `{ pointer: { x, y, z, down } }`. See "Pointer games" in docs/making-games.md,
+  and the new example, `examples/mole-bonk`.
+- Packages say `"kit": 16`. Uploads need kit v16: run `npm run update`.
+
 ## v15 (October 2026)
 
 - **Bots that play your game:** hosts can now add bots to private rooms, to play against or to

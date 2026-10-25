@@ -216,7 +216,24 @@ function botTarget(view, player, spec) {
   return cleanText(botWord(typeof wanted === 'string' ? wanted : '', Math.random), spec.maxLength);
 }
 
-// For screenshots: plays for you through the real keyboard controls, or types into the text box.
+// Where a bot playing player index `player` would point (rules.bot's pointer), on the screen, or
+// somewhere near the middle if it doesn't say.
+function botPoint(view, player) {
+  let p = null;
+  try {
+    if (view.box && !view.box.dead) p = JSON.parse(view.box.call('bot', JSON.stringify({ player }), MM.deadline.tick))?.pointer;
+  } catch {
+    // The game stopped: anywhere then.
+  }
+  if (!p || typeof p !== 'object') return [innerWidth * (0.3 + Math.random() * 0.4), innerHeight * (0.3 + Math.random() * 0.4)];
+  const cam = view.camera;
+  const mul = (m, v) => [0, 1, 2, 3].map((r) => m[r] * v[0] + m[4 + r] * v[1] + m[8 + r] * v[2] + m[12 + r] * v[3]);
+  const c = mul(cam.projectionMatrix.elements, mul(cam.matrixWorldInverse.elements, [Number(p.x) || 0, Number(p.y) || 0, Number(p.z) || 0, 1]));
+  return [((c[0] / c[3] + 1) / 2) * innerWidth, ((1 - c[1] / c[3]) / 2) * innerHeight];
+}
+
+// For screenshots: plays for you through the real keyboard controls (and mouse, pointing where
+// the game's bot() would), or types into the text box.
 function startAutoplay(spec, view) {
   if (spec.text) {
     let word = null;
@@ -241,6 +258,22 @@ function startAutoplay(spec, view) {
     window.dispatchEvent(new KeyboardEvent('keydown', { code }));
     setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { code })), ms);
   };
+  if (spec.pointer) {
+    const pointer = (type, [clientX, clientY]) => {
+      const zone = document.querySelector('.pointer-zone');
+      zone?.dispatchEvent(new PointerEvent(type, { clientX, clientY, button: 0, pointerType: 'mouse', pointerId: 1, isPrimary: true, bubbles: true }));
+    };
+    const point = () => {
+      const at = botPoint(view, 0);
+      pointer('pointermove', at);
+      if (Math.random() < 0.5) {
+        pointer('pointerdown', at);
+        setTimeout(() => pointer('pointerup', at), 80);
+      }
+      setTimeout(point, 150 + Math.random() * 250);
+    };
+    setTimeout(point, 500);
+  }
   const tick = () => {
     const r = Math.random();
     if (spec.buttons.length && (r < 0.4 || (!spec.move && !spec.dirs))) key(spec.buttons.includes('b') && Math.random() < 0.3 ? 'ShiftLeft' : 'Space', 80);
