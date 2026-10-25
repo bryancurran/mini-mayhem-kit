@@ -33,8 +33,9 @@ play with friends in the browser, and upload them to its library so anyone can p
    link to approve in your browser (signed in with Google). Your games go in that account.
 5. **Play it:** open https://minimosh.io/, press **Games**, find your game and press
    **Play it**.
-6. **Keep improving it:** change it, then `npm run upload <id>` again to replace the version in
-   the library. Your game is also under **Games → My games** on the site, where you can update
+6. **Keep improving it:** `npm run feedback <id>` shows how players rated it and the notes they
+   wrote about it (never who wrote them). Change it, then `npm run upload <id>` again to replace
+   the version in the library. Your game is also under **Games → My games** on the site, where you can update
    it, rename it or delete it from the browser.
 
 Before you start, and whenever the kit says it's out of date, run `npm run update`: it gets the
@@ -63,7 +64,8 @@ It will:
 When you're happy with it, ask it to "upload it to Mini Mosh with `npm run upload`". It shows
 your name as the maker: the one on your Mini Mosh account (type it in "Your name" on the site's
 home screen). Later, ask it to change the game and "upload the new version": the same command
-updates it.
+updates it. Or ask it to "see what players said about it and improve it": it reads their ratings
+and notes with `npm run feedback`.
 
 ## Make one yourself
 
@@ -92,6 +94,7 @@ full guide.
 | `npm run upload <id>` | Sends it to Mini Mosh's library, in your account (with your account's name as the maker), or updates it there if it's one of yours |
 | `npm run delete <id>` | Takes your game out of the library |
 | `npm run get <id>` | Downloads a game from the library into `games/<id>/` |
+| `npm run feedback [id]` | How players found your games in the library: their ratings, version by version, and the notes they wrote (never who) |
 | `npm run pack <id>` | Builds `dist/<id>.mm` (you can also upload that from the game's lobby) |
 | `npm run list` | Lists your games and the examples |
 

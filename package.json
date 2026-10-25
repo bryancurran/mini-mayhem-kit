@@ -20,6 +20,7 @@
     "upload": "node tools/mm.mjs upload",
     "delete": "node tools/mm.mjs delete",
     "get": "node tools/mm.mjs get",
+    "feedback": "node tools/mm.mjs feedback",
     "list": "node tools/mm.mjs list",
     "sounds": "node tools/mm.mjs sounds",
     "setup-browser": "playwright-core install --only-shell chromium"

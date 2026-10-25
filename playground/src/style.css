@@ -3092,6 +3092,13 @@ button.user-game {
   font-weight: 800;
 }
 
+.note-who {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
 .note-text {
   display: block;
   box-sizing: border-box;

@@ -23,6 +23,11 @@ latest kit: Mini Mosh turns down games packed with an older one, and says how to
   glided over from the middle of the world for a tick (Ribbon Rush's new ribbon pieces).
 - **Hiding the touch button** (added later in v15): `mm.controls({ button: false })` hides the
   stick layout's button on phones, for a player who's out (Flag Frenzy). See docs/making-games.md.
+- **What players think of your games** (added later in v15): `npm run feedback` lists your games
+  in the library with their ratings (1 to 3 stars, for how fun they were) and how many notes
+  players wrote, and `npm run feedback <id>` shows one game's ratings version by version and every
+  note, newest first (never who wrote it). Players' note boxes now say its maker reads them.
+  Coding agents read it before changing a game (see AGENTS.md).
 
 ## v14 (October 2026)
 
